@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>立体評価チャート・プロトタイプ v17</title>
+  <style>
+    :root {
+      --bottom-panel-height: 40vh;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
+    
+    /* 左サイドバー */
+    #sidebar { 
+      width: 350px; min-width: 250px; max-width: 500px; height: 100vh;
+      padding: 15px 20px 15px 15px; background: #2a2a2a; 
+      display: flex; flex-direction: column; gap: 10px; z-index: 10; 
+      box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
+    }
+    /* 右サイドバー */
+    #right-sidebar {
+      width: 350px; min-width: 250px; max-width: 600px; height: 100vh;
+      padding: 15px 15px 15px 20px; background: #2a2a2a; 
+      display: flex; flex-direction: column; gap: 10px; z-index: 10; 
+      box-shadow: -2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
+    }
+
+    /* 左リサイザー */
+    #resizer {
+      width: 24px; height: 100%; position: absolute; right: -12px; top: 0;
+      cursor: col-resize; z-index: 100; touch-action: none;
+    }
+    #resizer::after {
+      content: ''; position: absolute; left: 11px; top: 0; width: 2px; height: 100%;
+      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s, left 0.15s;
+    }
+    #resizer:hover::after, #resizer.resizing::after { background: #00ffcc; width: 4px; left: 10px; }
+
+    /* 右リサイザー */
+    #resizer-right {
+      width: 24px; height: 100%; position: absolute; left: -12px; top: 0;
+      cursor: col-resize; z-index: 100; touch-action: none;
+    }
+    #resizer-right::after {
+      content: ''; position: absolute; right: 11px; top: 0; width: 2px; height: 100%;
+      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s, right 0.15s;
+    }
+    #resizer-right:hover::after, #resizer-right.resizing::after { background: #00ffcc; width: 4px; right: 10px; }
+
+    #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
+    body.is-resizing #drag-overlay { display: block; }
+
+    /* 中央3Dビューポート */
+    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
+    #viewport { flex: 1; position: relative; }
+
+    details { background: #222; border: 1px solid #444; border-radius: 4px; padding: 8px; }
+    summary { font-size: 14px; font-weight: bold; cursor: pointer; color: #ddd; user-select: none; padding: 4px 0; }
+    .section-content { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .row-group { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    label { font-size: 12px; color: #aaa; }
+    
+    input[type="range"] { width: 100%; height: 20px; cursor: pointer; }
+    input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
+    select, input[type="text"], input[type="number"], textarea { 
+      padding: 8px; background: #333; color: #fff; border: 1px solid #555; 
+      border-radius: 4px; font-size: 14px; width: 100%; 
+    }
+    input[type="text"]:disabled { opacity: 0.5; color: #aaa; cursor: not-allowed; border-color: #444; }
+    textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+    select:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .canvas-container { position: relative; width: 100%; height: 260px; background: #111; border: 1px solid #444; border-radius: 4px; }
+    #projection-canvas { width: 100%; height: 100%; }
+
+    .drag-item { 
+      padding: 8px; background: #333; border: 1px dashed #555; border-radius: 4px; 
+      cursor: grab; display: flex; flex-direction: column; gap: 6px; transition: background 0.2s;
+    }
+    .drag-item:active { cursor: grabbing; }
+    .drag-item.drag-over { background: #446644; border-color: #66ff66; }
+
+    button.primary-btn {
+      background: #00ffcc; color: #000; font-weight: bold; padding: 10px; border: none;
+      border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 14px;
+    }
+    button.primary-btn:hover { background: #00ccaa; }
+    button.secondary-btn {
+      background: #444; color: #fff; font-weight: bold; padding: 8px; border: 1px solid #666;
+      border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 12px;
+    }
+    button.secondary-btn:hover { background: #666; }
+    .help-btn { background: #555; color: #fff; border-radius: 50%; width: 24px; height: 24px; border: none; font-weight: bold; cursor: pointer; display: inline-flex; justify-content: center; align-items: center;}
+    .help-btn-small { background: #555; color: #fff; border-radius: 50%; width: 18px; height: 18px; border: none; font-weight: bold; font-size: 12px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; margin-left: 4px;}
+
+    /* 写真アルバム用モーダル */
+    #album-modal {
+      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); z-index: 10000; flex-direction: column; padding: 20px; overflow-y: auto;
+    }
+    .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px; }
+    .photo-card { position: relative; width: 100%; aspect-ratio: 1; background: #333; border-radius: 6px; overflow: hidden; border: 1px solid #555; }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-del-btn {
+      position: absolute; top: 4px; right: 4px; background: rgba(255,0,0,0.8); color: #fff;
+      border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold;
+    }
+
+    /* === スマホ用メニューバー＆機能 === */
+    #mobile-nav { 
+      display: none; background: #111; padding: 6px 4px; border-bottom: 1px solid #444; 
+      width: 100%; flex-direction: row; justify-content: space-between; gap: 4px; 
+    }
+    .nav-btn { 
+      background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; 
+      padding: 6px 2px; font-size: 11px; cursor: pointer; flex: 1; 
+      display: flex; flex-direction: column; align-items: center; justify-content: center; 
+      gap: 3px; line-height: 1.1; text-align: center;
+    }
+    .nav-btn .icon { font-size: 16px; }
+    .nav-btn.active { background: #00ffcc; color: #000; font-weight: bold; }
+    
+    #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
+    #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
+
+    /* モバイル時Canvasオーバーレイ用 */
+    .canvas-container.mobile-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100% !important; height: 100% !important; z-index: 90; }
+
+    /* === モバイル・タブレット表示用のレイアウト再構築 === */
+    @media (max-width: 900px) {
+      body { flex-direction: column; }
+      #resizer, #resizer-right { display: none !important; }
+      
+      #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
+      #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
+      #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
+      
+      #sidebar, #right-sidebar { 
+        order: 4; width: 100% !important; max-width: none; 
+        height: var(--bottom-panel-height) !important; 
+        border: none; border-top: 1px solid #444; padding: 15px; 
+      }
+      
+      .mobile-section { display: none !important; }
+      body.tab-config #right-sidebar { display: none !important; }
+      body.tab-score #right-sidebar { display: none !important; }
+      body.tab-label #right-sidebar { display: none !important; }
+      body.tab-2d #sidebar { display: none !important; }
+      body.tab-memo #sidebar { display: none !important; }
+      
+      body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
+      body.tab-score #det-score { display: block !important; }
+      body.tab-label #det-label { display: block !important; }
+      body.tab-2d #det-2d { display: block !important; }
+      body.tab-memo #det-memo { display: block !important; }
+
+      #mobile-view-toggle { display: block !important; }
+    }
+
+    /* === Viewerモード (閲覧専用HTML用) === */
+    body.viewer-mode .edit-only { display: none !important; }
+    body.viewer-mode input.score-slider { pointer-events: none; opacity: 0.8; }
+    body.viewer-mode .drag-item { cursor: default; border: 1px solid #555; }
+  </style>
+
+  <!-- Three.js 本体と、動的凸包(ConvexHull)生成に必要なモジュール -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/ConvexHull.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
+
+<!-- PWA設定 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a1a1a">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <script>
+    // Service Worker の登録
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('SW registered:', reg))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+</head>
+<body class="tab-config">
+  <div id="drag-overlay"></div>
+
+  <!-- スマホ用メニューバー -->
+  <div id="mobile-nav">
+    <button class="nav-btn active" onclick="setMobileTab('config')"><span class="icon">⚙️</span><span>設定/比較</span></button>
+    <button class="nav-btn" onclick="setMobileTab('score')"><span class="icon">📊</span><span>スコア</span></button>
+    <button class="nav-btn" onclick="setMobileTab('label')"><span class="icon">🏷️</span><span>ラベル</span></button>
+    <button class="nav-btn" onclick="setMobileTab('2d')"><span class="icon">🗺️</span><span>2D投影</span></button>
+    <button class="nav-btn" onclick="setMobileTab('memo')"><span class="icon">📝</span><span>写真/メモ</span></button>
+  </div>
+
+  <!-- 左サイドバー: 基本設定・スコア・ラベル -->
+  <div id="sidebar">
+    <div id="resizer"></div>
+
+    <!-- 設定・比較セクション -->
+    <div id="det-config" class="mobile-section">
+      <div class="row-group">
+        <h3>評価プロトタイプ v17</h3>
+        <div>
+          <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
+          <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
+          <button class="help-btn edit-only" onclick="showQRInfo()" title="共有・QRコードについて">?</button>
+        </div>
+      </div>
+      
+      <div class="control-group edit-only">
+        <label>多面体モデル選択</label>
+        <select id="shapeSelect" onchange="toggleCustomConfig(); initShapeUI();">
+          <option value="tetrahedron">正四面体 (4頂点)</option>
+          <option value="octahedron">正八面体 (6頂点)</option>
+          <option value="bipyramid">双三角錐 (5頂点)</option>
+          <option value="custom">自由設計 (N頂点 自動配置)</option>
+        </select>
+      </div>
+      
+      <!-- 自由設計用の設定エリア -->
+      <div id="custom-config" style="display:none;" class="row-group edit-only">
+        <label>頂点の数 (2〜50):</label>
+        <input type="number" id="customVertices" min="2" max="50" value="12" style="width: 70px;" onchange="rebuildCustom()">
+        <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:#aaa; cursor:pointer;">
+          <input type="checkbox" id="flatPolygonToggle" onchange="rebuildCustom()"> 平面(2D)
+        </label>
+        <button class="secondary-btn" onclick="rebuildCustom()">再生成</button>
+      </div>
+
+      <details open id="det-compare-box">
+        <summary>データ比較機能 (他ファイルの重ね合わせ)</summary>
+        <div class="section-content">
+          <div class="row-group">
+            <button class="secondary-btn" onclick="document.getElementById('compareInput').click()">📁 比較用HTML読込</button>
+            <input type="file" id="compareInput" accept=".html" style="display:none;" onchange="handleCompareFile(event)">
+            <button class="secondary-btn" onclick="clearCompare()" id="clearCompareBtn" style="display:none; background:#aa3333;">❌ クリア</button>
+          </div>
+          <div id="compare-info" style="font-size:12px; color:#ff00ff; font-weight:bold;"></div>
+        </div>
+      </details>
+
+      <details open id="det-camera">
+        <summary>3Dカメラ & 表示設定</summary>
+        <div class="section-content">
+          <div class="row-group">
+            <label>自動回転</label>
+            <input type="checkbox" id="autoRotate" onchange="updateRotationSettings()">
+            <select id="rotateDir" onchange="updateRotationSettings()" style="width:auto;">
+              <option value="1">右回り</option>
+              <option value="-1">左回り</option>
+            </select>
+          </div>
+          <div class="row-group" style="justify-content: flex-start; gap: 5px;">
+            <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
+            <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
+            <button class="help-btn-small" onclick="showEnhanceInfo()">?</button>
+          </div>
+          <div class="control-group">
+            <label>3Dラベルのサイズ</label>
+            <input type="range" id="labelSize" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updatePlot()">
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <details open id="det-score" class="mobile-section">
+      <summary>1. 評価スコア入力</summary>
+      <div class="section-content">
+        <div class="row-group edit-only">
+          <label style="color:#00ffcc; font-weight:bold;">入力をロックする</label>
+          <input type="checkbox" id="lockScores" onchange="toggleLock()">
+        </div>
+        <div id="sliders-container" class="section-content"></div>
+      </div>
+    </details>
+
+    <details open id="det-label" class="mobile-section">
+      <summary>2. 頂点ラベル設定 (D&Dで入替可能)</summary>
+      <div class="section-content" id="labels-container">
+        <!-- 動的生成エリア -->
+      </div>
+    </details>
+  </div>
+
+  <!-- スマホ用リサイザー -->
+  <div id="mobile-resizer"></div>
+
+  <!-- 中央: 3Dビューポート -->
+  <div id="viewport-container">
+    <button id="mobile-view-toggle" class="secondary-btn" onclick="toggleMobileView()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 2Dマップ切替</button>
+    <div id="viewport"></div>
+  </div>
+
+  <!-- 右サイドバー: ノート・写真・2D投影 -->
+  <div id="right-sidebar">
+    <div id="resizer-right"></div>
+
+    <details open id="det-memo" class="mobile-section">
+      <summary>ノート & 写真</summary>
+      <div class="section-content">
+        <div class="row-group edit-only">
+          <button class="secondary-btn" onclick="toggleMemo()">ノート表示/非表示</button>
+          <button class="secondary-btn" onclick="document.getElementById('photoInput').click()">📷 写真追加</button>
+          <button class="secondary-btn" onclick="openAlbum()">🖼️ アルバム (<span id="photoCount">0</span>/4)</button>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoAdd(event)">
+        </div>
+        <div class="row-group" id="viewer-album-btn" style="display:none;">
+          <button class="primary-btn" onclick="openAlbum()">🖼️ 添付写真を見る</button>
+        </div>
+        <div id="memo-area" style="display: block;">
+          <textarea id="memoInput" placeholder="メモを記述..." oninput="saveMemoToStorage()"></textarea>
+        </div>
+      </div>
+    </details>
+
+    <details open id="det-2d" class="mobile-section">
+      <summary>3. 2D 投影マップ</summary>
+      <div class="section-content" id="2d-section-content">
+        <div class="control-group">
+          <label>投影平面 (指定した頂点から見下ろす)</label>
+          <select id="planeSelect" onchange="updatePlot()">
+            <!-- 動的生成エリア -->
+          </select>
+        </div>
+        <button class="secondary-btn edit-only" onclick="exportAll2DMaps()">全パターンの投影マップをJPG保存</button>
+        <div class="canvas-container" id="main-canvas-container">
+          <canvas id="projection-canvas"></canvas>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <!-- 写真アルバム モーダル -->
+  <div id="album-modal">
+    <div class="row-group">
+      <h3>写真アルバム (最大4枚)</h3>
+      <button class="secondary-btn" onclick="closeAlbum()">閉じる</button>
+    </div>
+    <div id="album-grid" class="album-grid"></div>
+  </div>
+
+  <script>
+    // --- UIリサイズ制御 (左サイドバー用・PC) ---
+    const sidebar = document.getElementById('sidebar');
+    const resizer = document.getElementById('resizer');
+    let isResizingLeft = false;
+    let resizeAnimationFrame = null;
+
+    resizer.addEventListener('pointerdown', (e) => {
+      isResizingLeft = true; resizer.setPointerCapture(e.pointerId);
+      resizer.classList.add('resizing'); document.body.classList.add('is-resizing');
+    });
+    resizer.addEventListener('pointermove', (e) => {
+      if (!isResizingLeft) return;
+      if (window.innerWidth <= 900) return;
+      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
+      resizeAnimationFrame = requestAnimationFrame(() => {
+        const newWidth = e.clientX;
+        if (newWidth >= 250 && newWidth <= 600) sidebar.style.width = `${newWidth}px`;
+        onWindowResize();
+      });
+    });
+
+    // --- UIリサイズ制御 (右サイドバー用・PC) ---
+    const rightSidebar = document.getElementById('right-sidebar');
+    const resizerRight = document.getElementById('resizer-right');
+    let isResizingRight = false;
+
+    resizerRight.addEventListener('pointerdown', (e) => {
+      isResizingRight = true; resizerRight.setPointerCapture(e.pointerId);
+      resizerRight.classList.add('resizing'); document.body.classList.add('is-resizing');
+    });
+    resizerRight.addEventListener('pointermove', (e) => {
+      if (!isResizingRight) return;
+      if (window.innerWidth <= 900) return;
+      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
+      resizeAnimationFrame = requestAnimationFrame(() => {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth >= 250 && newWidth <= 600) rightSidebar.style.width = `${newWidth}px`;
+        onWindowResize();
+      });
+    });
+
+    // --- モバイル縦リサイザー制御 ---
+    const mobileResizer = document.getElementById('mobile-resizer');
+    let isResizingMobile = false;
+    mobileResizer.addEventListener('pointerdown', (e) => {
+      isResizingMobile = true; mobileResizer.setPointerCapture(e.pointerId);
+      document.body.classList.add('is-resizing');
+    });
+    mobileResizer.addEventListener('pointermove', (e) => {
+      if (!isResizingMobile) return;
+      if (window.innerWidth > 900) return;
+      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
+      resizeAnimationFrame = requestAnimationFrame(() => {
+        const newHeight = window.innerHeight - e.clientY;
+        if (newHeight >= 150 && newHeight <= window.innerHeight - 150) {
+          document.documentElement.style.setProperty('--bottom-panel-height', `${newHeight}px`);
+          onWindowResize();
+        }
+      });
+    });
+
+    const stopResize = (e) => {
+      if (isResizingLeft) { isResizingLeft = false; try { resizer.releasePointerCapture(e.pointerId); } catch(err){} resizer.classList.remove('resizing'); }
+      if (isResizingRight) { isResizingRight = false; try { resizerRight.releasePointerCapture(e.pointerId); } catch(err){} resizerRight.classList.remove('resizing'); }
+      if (isResizingMobile) { isResizingMobile = false; try { mobileResizer.releasePointerCapture(e.pointerId); } catch(err){} }
+      document.body.classList.remove('is-resizing');
+    };
+    
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+
+    // --- モバイル タブ制御 ---
+    function setMobileTab(tabName) {
+      document.body.className = document.body.className.replace(/tab-\w+/g, '');
+      if (document.body.classList.contains('viewer-mode')) document.body.classList.add('viewer-mode'); 
+      document.body.classList.add('tab-' + tabName);
+      
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.querySelector(`.nav-btn[onclick="setMobileTab('${tabName}')"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      setTimeout(onWindowResize, 50); 
+    }
+
+    // --- モバイル 3D/2D ビュー切り替え ---
+    let isMobile2DView = false;
+    function toggleMobileView() {
+      isMobile2DView = !isMobile2DView;
+      const canvasContainer = document.getElementById('main-canvas-container');
+      const viewportContainer = document.getElementById('viewport-container');
+      const originalParent = document.getElementById('2d-section-content');
+      const btn = document.getElementById('mobile-view-toggle');
+      
+      if (isMobile2DView) {
+        canvasContainer.classList.add('mobile-overlay');
+        viewportContainer.appendChild(canvasContainer);
+        btn.innerHTML = "<span style='font-size:16px;'>🌐</span> 3Dビュー切替";
+        btn.style.background = "#ffaa00";
+        btn.style.color = "#000";
+      } else {
+        canvasContainer.classList.remove('mobile-overlay');
+        originalParent.appendChild(canvasContainer);
+        btn.innerHTML = "<span style='font-size:16px;'>🗺️</span> 2Dマップ切替";
+        btn.style.background = "";
+        btn.style.color = "";
+      }
+      setTimeout(updatePlot, 50);
+    }
+
+    // --- ヘルプダイアログ ---
+    function showQRInfo() {
+      alert("【共有・QRコードについて】\n\nQRコード自体にはデータ容量の制限があるため、HTMLファイルを直接QRコードに埋め込むことは不可能です。\n\n◆ 解決策（サーバー不要の共有）\n1. 「閲覧用保存」ボタンで軽量な専用HTMLをダウンロードします。\n2. そのファイルをLINE、メール、AirDropなどでスマホや他者に共有します。\n3. 受け取った側はブラウザでファイルを開くだけで、専用アプリやサーバーなしで3D閲覧と比較機能が利用可能です。");
+    }
+
+    function showEnhanceInfo() {
+      alert("【移動幅強調モードについて】\n\n各頂点のスコアを「各方向への引っ張る力（ベクトル）」と見なし、その単純な合成（合力）を求める数学的処理に基づいています。\n\nこのモードをONにすると、入力されたスコアベクトルに対して【 × 頂点数 (N倍) 】の補正がかかります。これにより、1つの頂点だけが最大(1)で他がすべて0の場合に、プロットが【ちょうどその頂点の位置に到達】するようになります。");
+    }
+
+    // --- メモ & 写真 管理機能 ---
+    let photosList = [];
+
+    function toggleMemo() {
+      const area = document.getElementById('memo-area');
+      area.style.display = area.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function saveMemoToStorage() {
+      const text = document.getElementById('memoInput').value;
+      localStorage.setItem('eval_chart_memo', text);
+    }
+
+    function savePhotosToStorage() {
+      try {
+        localStorage.setItem('eval_chart_photos', JSON.stringify(photosList));
+      } catch(e) {
+        console.warn('Storage quota exceeded for photos.');
+      }
+    }
+
+    function handlePhotoAdd(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (photosList.length >= 4) { alert('写真は最大4枚まで追加可能です。'); e.target.value = ''; return; }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width, height = img.height;
+          const maxDim = 800;
+          if (width > height && width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; } 
+          else if (height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+          photosList.push(compressedBase64);
+          document.getElementById('photoCount').innerText = photosList.length;
+          savePhotosToStorage();
+          renderAlbum();
+          e.target.value = '';
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function openAlbum() {
+      renderAlbum();
+      document.getElementById('album-modal').style.display = 'flex';
+    }
+    function closeAlbum() { document.getElementById('album-modal').style.display = 'none'; }
+
+    function deletePhoto(index) {
+      if(document.body.classList.contains('viewer-mode')) return;
+      photosList.splice(index, 1);
+      document.getElementById('photoCount').innerText = photosList.length;
+      savePhotosToStorage(); renderAlbum();
+    }
+
+    function renderAlbum() {
+      const grid = document.getElementById('album-grid');
+      grid.innerHTML = '';
+      if (photosList.length === 0) { grid.innerHTML = '<p style="color:#888; grid-column: 1/-1;">写真はありません</p>'; return; }
+      const isViewer = document.body.classList.contains('viewer-mode');
+      photosList.forEach((src, idx) => {
+        const card = document.createElement('div');
+        card.className = 'photo-card';
+        card.innerHTML = `<img src="${src}" alt="photo_${idx}">` + (isViewer ? '' : `<button class="photo-del-btn" onclick="deletePhoto(${idx})">×</button>`);
+        grid.appendChild(card);
+      });
+    }
+
+    // --- 図形定義と自由設計計算 ---
+    const R = 2 * Math.sqrt(2) / 3;
+    const Y_base = -1 / 3;
+    let SHAPES = {
+      tetrahedron: {
+        vertices: [
+          { id: 'v0', name: '頂点 A (頂上)', defaultLabel: '要素 1', v: [0, 1, 0] },
+          { id: 'v1', name: '頂点 B (底面奥)', defaultLabel: '要素 2', v: [0, Y_base, R] },
+          { id: 'v2', name: '頂点 C (底面右)', defaultLabel: '要素 3', v: [R * Math.cos(-Math.PI/6), Y_base, R * Math.sin(-Math.PI/6)] },
+          { id: 'v3', name: '頂点 D (底面左)', defaultLabel: '要素 4', v: [R * Math.cos(7*Math.PI/6), Y_base, R * Math.sin(7*Math.PI/6)] }
+        ],
+        faces: [[0,1,2], [0,2,3], [0,3,1], [1,3,2]]
+      },
+      octahedron: {
+        vertices: [
+          { id: 'v0', name: '頂点 Top (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
+          { id: 'v1', name: '頂点 Bottom (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
+          { id: 'v2', name: '頂点 Right (+X)', defaultLabel: '要素 3', v: [1, 0, 0] },
+          { id: 'v3', name: '頂点 Left (-X)', defaultLabel: '要素 4', v: [-1, 0, 0] },
+          { id: 'v4', name: '頂点 Front (+Z)', defaultLabel: '要素 5', v: [0, 0, 1] },
+          { id: 'v5', name: '頂点 Back (-Z)', defaultLabel: '要素 6', v: [0, 0, -1] }
+        ],
+        faces: [[0,2,4], [0,4,3], [0,3,5], [0,5,2], [1,4,2], [1,3,4], [1,5,3], [1,2,5]]
+      },
+      bipyramid: {
+        vertices: [
+          { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
+          { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
+          { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] },
+          { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] },
+          { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] }
+        ],
+        faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]]
+      }
+    };
+
+    function getEdges(faces) {
+      const edges = [];
+      const edgeSet = new Set();
+      faces.forEach(face => {
+        for (let i = 0; i < face.length; i++) {
+          const a = face[i], b = face[(i + 1) % face.length];
+          const key = Math.min(a, b) + '_' + Math.max(a, b);
+          if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([a, b]); }
+        }
+      });
+      return edges;
+    }
+
+    function generateCustomShape(n, is2DFlat = false) {
+      let points = [];
+      let faces = [];
+      let explicitEdges = null;
+
+      if (is2DFlat || n < 4) {
+        for (let i = 0; i < n; i++) {
+          const angle = (2 * Math.PI * i) / n - Math.PI / 2;
+          points.push(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)));
+        }
+        if (n === 2) { explicitEdges = [[0, 1]]; } 
+        else { for (let i = 1; i < n - 1; i++) { faces.push([0, i, i + 1]); faces.push([0, i + 1, i]); } }
+      } else {
+        if (n === 4) {
+          const R = 2 * Math.sqrt(2) / 3; const Y_base = -1 / 3;
+          points = [ new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, Y_base, R), new THREE.Vector3(R * Math.cos(-Math.PI/6), Y_base, R * Math.sin(-Math.PI/6)), new THREE.Vector3(R * Math.cos(7*Math.PI/6), Y_base, R * Math.sin(7*Math.PI/6)) ];
+        } else if (n === 6) {
+          points = [ new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1) ];
+        } else if (n === 8) {
+          const c = 1 / Math.sqrt(3);
+          points = [
+            new THREE.Vector3(-c, -c, -c), new THREE.Vector3(c, -c, -c), new THREE.Vector3(c, c, -c),  new THREE.Vector3(-c, c, -c),
+            new THREE.Vector3(-c, -c, c), new THREE.Vector3(c, -c, c), new THREE.Vector3(c, c, c),   new THREE.Vector3(-c, c, c)
+          ];
+        } else if (n === 12) {
+          const t = (1.0 + Math.sqrt(5.0)) / 2.0; const len = Math.sqrt(1 + t*t); const r1 = 1 / len, r2 = t / len;
+          points = [
+            new THREE.Vector3(-r1,  r2, 0), new THREE.Vector3( r1,  r2, 0), new THREE.Vector3(-r1, -r2, 0), new THREE.Vector3( r1, -r2, 0),
+            new THREE.Vector3(0, -r1,  r2), new THREE.Vector3(0,  r1,  r2), new THREE.Vector3(0, -r1, -r2), new THREE.Vector3(0,  r1, -r2),
+            new THREE.Vector3( r2, 0, -r1), new THREE.Vector3( r2, 0,  r1), new THREE.Vector3(-r2, 0, -r1), new THREE.Vector3(-r2, 0,  r1)
+          ];
+        } else if (n === 20) {
+          const phi = (1 + Math.sqrt(5)) / 2; const r = Math.sqrt(3);
+          const rawPoints = [ [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], [0, -1/phi, -phi], [0, 1/phi, -phi], [0, -1/phi, phi], [0, 1/phi, phi], [-1/phi, -phi, 0], [1/phi, -phi, 0], [-1/phi, phi, 0], [1/phi, phi, 0], [-phi, 0, -1/phi], [phi, 0, -1/phi], [-phi, 0, 1/phi], [phi, 0, 1/phi] ];
+          points = rawPoints.map(p => new THREE.Vector3(p[0]/r, p[1]/r, p[2]/r));
+        } else if (n % 2 === 0) {
+          // 偶数の場合: 必ず原点対称な点（点対称ペア）を持つように生成 (角柱的配置)
+          const k = n / 2; const h = 0.55; const r = Math.sqrt(1 - h * h);
+          for (let i = 0; i < k; i++) {
+            const theta = (2 * Math.PI * i) / k;
+            points.push(new THREE.Vector3(r * Math.cos(theta), h, r * Math.sin(theta)));
+            points.push(new THREE.Vector3(-r * Math.cos(theta), -h, -r * Math.sin(theta))); // 対向点
+          }
+        } else {
+          // 奇数の場合: 可能な限りの対称性 (極2つ + 赤道)
+          const k = n - 2;
+          points.push(new THREE.Vector3(0, 1, 0)); points.push(new THREE.Vector3(0, -1, 0));
+          for (let i = 0; i < k; i++) {
+            const theta = (2 * Math.PI * i) / k;
+            points.push(new THREE.Vector3(Math.cos(theta), 0, Math.sin(theta)));
+          }
+        }
+
+        // ConvexGeometryを利用して自動で面(faces)を張る
+        if (points.length >= 4) {
+          const convexGeo = new THREE.ConvexGeometry(points);
+          const pos = convexGeo.attributes.position;
+          for(let i = 0; i < pos.count; i += 3) {
+            const v1 = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+            const v2 = new THREE.Vector3(pos.getX(i+1), pos.getY(i+1), pos.getZ(i+1));
+            const v3 = new THREE.Vector3(pos.getX(i+2), pos.getY(i+2), pos.getZ(i+2));
+            const findIdx = (vec) => points.findIndex(p => p.distanceTo(vec) < 0.001);
+            const idx1 = findIdx(v1), idx2 = findIdx(v2), idx3 = findIdx(v3);
+            if(idx1 !== -1 && idx2 !== -1 && idx3 !== -1) faces.push([idx1, idx2, idx3]);
+          }
+        }
+      }
+
+      return {
+        vertices: points.map((p, i) => ({ id: `vc${i}`, name: `頂点 ${i+1}`, defaultLabel: `要素 ${i+1}`, v: [p.x, p.y, p.z] })),
+        faces: faces,
+        edges: explicitEdges ? explicitEdges : getEdges(faces)
+      };
+    }
+
+    function isCurrentFlatMode() {
+      const type = document.getElementById('shapeSelect').value;
+      if (type !== 'custom') return false;
+      const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
+      const flatEl = document.getElementById('flatPolygonToggle');
+      const is2DFlat = flatEl ? flatEl.checked : false;
+      return is2DFlat || vertCount < 4;
+    }
+
+    // --- 状態管理・比較データ ---
+    let shapeData = SHAPES.tetrahedron;
+    let labelMemory = { origin: 'コア/シック' }; 
+    let scoreMemory = {}; 
+    let compareData = null; 
+
+    // --- ペア色付けロジック ---
+    const pairColorPalette = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#9b5de5', '#00f5d4', '#f15bb5', '#fee440'];
+    function assignPairColors(vertices) {
+      let colorIndex = 0;
+      const paired = new Set();
+      
+      vertices.forEach(v => v.pairColor = ''); // 初期化
+
+      for (let i = 0; i < vertices.length; i++) {
+        if (paired.has(i)) continue;
+        const v1 = new THREE.Vector3(...vertices[i].v);
+        
+        for (let j = i + 1; j < vertices.length; j++) {
+          if (paired.has(j)) continue;
+          const v2 = new THREE.Vector3(...vertices[j].v);
+          // 対向点 (v1 + v2 がほぼ 0ベクトル) の判定
+          if (v1.clone().add(v2).length() < 0.1) {
+            const color = pairColorPalette[colorIndex % pairColorPalette.length];
+            vertices[i].pairColor = color;
+            vertices[j].pairColor = color;
+            paired.add(i); paired.add(j);
+            colorIndex++;
+            break;
+          }
+        }
+      }
+    }
+
+    // --- Three.js セットアップ ---
+    const container = document.getElementById('viewport');
+    container.innerHTML = ''; 
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+    camera.position.set(2.5, 2, 3);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    container.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 7); scene.add(dirLight);
+
+    // 黄色いプロット (重心) 
+    const pointGeo = new THREE.SphereGeometry(0.06, 32, 32);
+    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false }); // 最前面
+    const dataPoint = new THREE.Mesh(pointGeo, pointMat);
+    dataPoint.renderOrder = 9999;
+    
+    // オーラ (視認性向上)
+    const auraGeo = new THREE.SphereGeometry(0.12, 32, 32);
+    const auraMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.4, depthTest: false });
+    const auraPoint = new THREE.Mesh(auraGeo, auraMat);
+    auraPoint.renderOrder = 9998;
+    dataPoint.add(auraPoint);
+    scene.add(dataPoint);
+
+    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+    const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, wireframe: true });
+    const boundingSphere = new THREE.Mesh(sphereGeo, sphereMat);
+    scene.add(boundingSphere);
+
+    const wireframeGroup = new THREE.Group(); scene.add(wireframeGroup);
+    const regionGroup = new THREE.Group(); scene.add(regionGroup);
+    const compareGroup = new THREE.Group(); scene.add(compareGroup); 
+    const labelGroup = new THREE.Group(); scene.add(labelGroup);
+
+    // --- 動的UI生成と更新 ---
+    function toggleCustomConfig() {
+      const isCustom = document.getElementById('shapeSelect').value === 'custom';
+      document.getElementById('custom-config').style.display = isCustom ? 'flex' : 'none';
+    }
+
+    function rebuildCustom() {
+      const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
+      const flatEl = document.getElementById('flatPolygonToggle');
+      const is2DFlat = flatEl ? flatEl.checked : false;
+      SHAPES['custom'] = generateCustomShape(Math.min(Math.max(vertCount, 2), 50), is2DFlat);
+      initShapeUI();
+    }
+
+    function initShapeUI() {
+      const type = document.getElementById('shapeSelect').value;
+      if(type === 'custom') {
+        const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
+        const flatEl = document.getElementById('flatPolygonToggle');
+        const is2DFlat = flatEl ? flatEl.checked : false;
+        SHAPES['custom'] = generateCustomShape(Math.max(vertCount, 2), is2DFlat);
+      }
+      
+      shapeData = SHAPES[type];
+      if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
+      
+      // 対向頂点の判定と色付け
+      assignPairColors(shapeData.vertices);
+
+      const slidersDiv = document.getElementById('sliders-container');
+      const labelsDiv = document.getElementById('labels-container');
+      const planeSelect = document.getElementById('planeSelect');
+      
+      slidersDiv.innerHTML = '';
+      labelsDiv.innerHTML = `<div class="control-group"><label>中心点 (原点)</label><input type="text" id="label_origin" value="${labelMemory['origin']}" oninput="saveMemAndPlot()"></div>`;
+      planeSelect.innerHTML = '';
+
+      shapeData.vertices.forEach(vert => {
+        if (!(vert.id in scoreMemory)) scoreMemory[vert.id] = 0.5;
+        if (!(vert.id in labelMemory)) labelMemory[vert.id] = vert.defaultLabel;
+
+        const currentLabel = labelMemory[vert.id];
+
+        slidersDiv.innerHTML += `
+          <div class="control-group">
+            <label id="lbl_${vert.id}">${currentLabel}: ${scoreMemory[vert.id]}</label>
+            <input type="range" id="score_${vert.id}" class="score-slider" min="0" max="1" step="0.05" value="${scoreMemory[vert.id]}" oninput="saveMemAndPlot()">
+          </div>`;
+
+        // ペアカラーがあれば左ボーダーとして適用
+        const borderStyle = vert.pairColor ? `border-left: 6px solid ${vert.pairColor};` : '';
+
+        labelsDiv.innerHTML += `
+          <div class="control-group drag-item" draggable="true" data-id="${vert.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="${borderStyle}">
+            <label>≡ ${vert.name}</label>
+            <input type="text" id="label_${vert.id}" value="${currentLabel}" oninput="saveMemAndPlot()">
+          </div>`;
+
+        planeSelect.innerHTML += `<option id="opt_${vert.id}" value="${vert.id}">${currentLabel} から見下ろす</option>`;
+      });
+
+      planeSelect.disabled = isCurrentFlatMode();
+
+      toggleLock();
+      buildStatic3DShapes();
+      updatePlot();
+    }
+
+    function saveMemAndPlot() {
+      if(document.body.classList.contains('viewer-mode')) return; 
+      const originInput = document.getElementById('label_origin');
+      if (originInput) labelMemory['origin'] = originInput.value;
+      
+      shapeData.vertices.forEach(v => {
+        const scoreEl = document.getElementById(`score_${v.id}`);
+        const labelEl = document.getElementById(`label_${v.id}`);
+        if(scoreEl) {
+          const val = parseFloat(scoreEl.value);
+          scoreMemory[v.id] = val;
+          const currentLabel = labelEl ? labelEl.value : v.defaultLabel;
+          labelMemory[v.id] = currentLabel;
+          const lbl = document.getElementById(`lbl_${v.id}`);
+          if (lbl) lbl.innerText = `${currentLabel}: ${val}`;
+          const opt = document.getElementById(`opt_${v.id}`);
+          if(opt) opt.innerText = `${currentLabel} から見下ろす`;
+        }
+      });
+      updatePlot();
+    }
+
+    function toggleLock() {
+      const isLocked = document.getElementById('lockScores').checked;
+      document.querySelectorAll('.score-slider').forEach(el => el.disabled = isLocked);
+    }
+
+    function updateRotationSettings() {
+      controls.autoRotate = document.getElementById('autoRotate').checked;
+      controls.autoRotateSpeed = 2.0 * parseFloat(document.getElementById('rotateDir').value);
+    }
+
+    // --- D&D ロジック ---
+    let draggedId = null;
+    function handleDragStart(e) { if(document.body.classList.contains('viewer-mode')) return; draggedId = e.currentTarget.dataset.id; e.dataTransfer.effectAllowed = 'move'; }
+    function handleDragOver(e) { if(document.body.classList.contains('viewer-mode')) return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+    document.addEventListener('dragleave', (e) => { if(e.target.classList && e.target.classList.contains('drag-item')) e.target.classList.remove('drag-over'); });
+    function handleDrop(e) {
+      if(document.body.classList.contains('viewer-mode')) return;
+      e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+      const dropId = e.currentTarget.dataset.id;
+      if (draggedId && draggedId !== dropId) {
+        const input1 = document.getElementById(`label_${draggedId}`);
+        const input2 = document.getElementById(`label_${dropId}`);
+        if (input1 && input2) {
+          const temp = input1.value; input1.value = input2.value; input2.value = temp;
+          saveMemAndPlot();
+        }
+      }
+    }
+
+    // --- 比較用ファイル読込処理 ---
+    function handleCompareFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, "text/html");
+        const stateScript = doc.getElementById('save-state');
+        if (stateScript) {
+          try {
+            compareData = JSON.parse(stateScript.textContent);
+            document.getElementById('clearCompareBtn').style.display = 'block';
+            document.getElementById('compare-info').innerText = "✅ 比較データを表示中 (ピンク)";
+            updatePlot();
+          } catch (err) { alert('データが読み込めませんでした。'); }
+        } else { alert('比較用データが見つかりません。'); }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    }
+
+    function clearCompare() {
+      compareData = null;
+      document.getElementById('clearCompareBtn').style.display = 'none';
+      document.getElementById('compare-info').innerText = "";
+      updatePlot();
+    }
+
+    // --- 3D 描画関連 ---
+    function buildStatic3DShapes() {
+      while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
+      const geom = new THREE.BufferGeometry();
+      const vertices = [];
+      shapeData.vertices.forEach(v => vertices.push(...v.v));
+      geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      
+      const indices = [];
+      shapeData.edges.forEach(edge => indices.push(edge[0], edge[1]));
+      geom.setIndex(indices);
+
+      const wireMat = new THREE.LineBasicMaterial({ color: 0x555555 });
+      const wire = new THREE.LineSegments(geom, wireMat);
+      wireframeGroup.add(wire);
+    }
+
+    function createTextSprite(message, color, scaleFactor, alwaysOnTop = false) {
+      const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+      ctx.font = "Bold 40px sans-serif";
+      const metrics = ctx.measureText(message);
+      canvas.width = metrics.width + 24; canvas.height = 56;
+      ctx.font = "Bold 40px sans-serif"; ctx.fillStyle = color;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(message, canvas.width / 2, canvas.height / 2);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: !alwaysOnTop });
+      const sprite = new THREE.Sprite(mat);
+      if(alwaysOnTop) sprite.renderOrder = 1000;
+      sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1);
+      return sprite;
+    }
+
+    function createOriginTextSprite(originText, color, scaleFactor) {
+      const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+      ctx.font = "Bold 40px sans-serif";
+      const dotStr = "●", labelStr = originText ? " " + originText : "";
+      const dotWidth = ctx.measureText(dotStr).width, labelWidth = ctx.measureText(labelStr).width, padding = 12;
+      canvas.width = dotWidth + labelWidth + padding * 2; canvas.height = 56;
+      ctx.font = "Bold 40px sans-serif"; ctx.fillStyle = color; ctx.textBaseline = 'middle';
+      const dotCenterX = padding + dotWidth / 2;
+      ctx.textAlign = 'center'; ctx.fillText(dotStr, dotCenterX, canvas.height / 2);
+      if (labelStr) { ctx.textAlign = 'left'; ctx.fillText(labelStr, padding + dotWidth, canvas.height / 2); }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.renderOrder = 1000;
+      sprite.center.set(dotCenterX / canvas.width, 0.5); 
+      sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1);
+      return sprite;
+    }
+
+    function updatePlot() {
+      const P = [];
+      let sumX = 0, sumY = 0, sumZ = 0;
+
+      shapeData.vertices.forEach(vert => {
+        const score = scoreMemory[vert.id];
+        const px = vert.v[0] * score, py = vert.v[1] * score, pz = vert.v[2] * score;
+        P.push({ x: px, y: py, z: pz });
+        sumX += px; sumY += py; sumZ += pz;
+      });
+      
+      const count = P.length || 1;
+      let cx = sumX / count, cy = sumY / count, cz = sumZ / count;
+
+      // 【改修】移動幅強調モード (N倍: ベクトルの合力 ＆ 破綻防止リミッター)
+      const enhanceCheck = document.getElementById('enhanceMovement');
+      if (enhanceCheck && enhanceCheck.checked) {
+        const factor = count; // 頂点数倍
+        cx *= factor; cy *= factor; cz *= factor;
+        
+        // リミッター: 外殻の目安半径 (1.2) を超えたら押しとどめる
+        const dist = Math.sqrt(cx*cx + cy*cy + cz*cz);
+        const maxDist = 1.2;
+        if (dist > maxDist) {
+          cx = (cx / dist) * maxDist;
+          cy = (cy / dist) * maxDist;
+          cz = (cz / dist) * maxDist;
+        }
+      }
+
+      dataPoint.position.set(cx, cy, cz); // 重心プロットの移動
+
+      while(regionGroup.children.length > 0) regionGroup.remove(regionGroup.children[0]);
+      while(compareGroup.children.length > 0) compareGroup.remove(compareGroup.children[0]);
+
+      // --- 自身のポリゴン描画 ---
+      if (shapeData.faces && shapeData.faces.length > 0) {
+        const regionGeo = new THREE.BufferGeometry();
+        const posArray = new Float32Array(P.length * 3);
+        P.forEach((p, i) => { posArray[i*3]=p.x; posArray[i*3+1]=p.y; posArray[i*3+2]=p.z; });
+        regionGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const faces = []; shapeData.faces.forEach(f => faces.push(...f));
+        regionGeo.setIndex(faces);
+        const regionMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+        regionGroup.add(new THREE.Mesh(regionGeo, regionMat));
+      }
+
+      const innerWireGeo = new THREE.BufferGeometry(); const innerWirePos = [];
+      shapeData.edges.forEach(edge => {
+        innerWirePos.push(P[edge[0]].x, P[edge[0]].y, P[edge[0]].z);
+        innerWirePos.push(P[edge[1]].x, P[edge[1]].y, P[edge[1]].z);
+      });
+      innerWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(innerWirePos, 3));
+      regionGroup.add(new THREE.LineSegments(innerWireGeo, new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.8 })));
+
+      // --- 比較データの描画 ---
+      let compP = null;
+      if (compareData && compareData.labels && compareData.scores) {
+        compP = [];
+        shapeData.vertices.forEach(vert => {
+          const currentLabelName = labelMemory[vert.id] || vert.defaultLabel;
+          let compScore = 0;
+          let matchedId = null;
+          for (const [id, labelName] of Object.entries(compareData.labels)) {
+            if (labelName === currentLabelName) { matchedId = id; break; }
+          }
+          if (matchedId && compareData.scores[matchedId] !== undefined) {
+            compScore = compareData.scores[matchedId];
+          }
+          compP.push({ x: vert.v[0] * compScore, y: vert.v[1] * compScore, z: vert.v[2] * compScore });
+        });
+
+        if (shapeData.faces && shapeData.faces.length > 0) {
+          const compGeo = new THREE.BufferGeometry();
+          const compPos = new Float32Array(compP.length * 3);
+          compP.forEach((p, i) => { compPos[i*3]=p.x; compPos[i*3+1]=p.y; compPos[i*3+2]=p.z; });
+          compGeo.setAttribute('position', new THREE.BufferAttribute(compPos, 3));
+          const faces = []; shapeData.faces.forEach(f => faces.push(...f));
+          compGeo.setIndex(faces);
+          const compMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+          compareGroup.add(new THREE.Mesh(compGeo, compMat));
+        }
+
+        const compWireGeo = new THREE.BufferGeometry(); const compWirePos = [];
+        shapeData.edges.forEach(edge => {
+          compWirePos.push(compP[edge[0]].x, compP[edge[0]].y, compP[edge[0]].z);
+          compWirePos.push(compP[edge[1]].x, compP[edge[1]].y, compP[edge[1]].z);
+        });
+        compWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(compWirePos, 3));
+        compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.8 })));
+      }
+
+      // --- ラベル描画 ---
+      while(labelGroup.children.length > 0) {
+        const c = labelGroup.children[0];
+        if (c.material.map) c.material.map.dispose();
+        c.material.dispose(); labelGroup.remove(c);
+      }
+      const scaleFactor = parseFloat(document.getElementById('labelSize').value);
+      
+      const originText = labelMemory['origin'];
+      if (originText !== undefined) {
+        const sp = createOriginTextSprite(originText, '#00ffcc', scaleFactor);
+        sp.position.set(0, 0, 0); // 空間の中心に完全に固定
+        labelGroup.add(sp);
+      }
+      shapeData.vertices.forEach(v => {
+        const text = labelMemory[v.id];
+        if (text) {
+          const sp = createTextSprite(text, '#ffcccc', scaleFactor);
+          sp.position.set(v.v[0]*1.15, v.v[1]*1.15, v.v[2]*1.15);
+          labelGroup.add(sp);
+        }
+      });
+
+      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP);
+    }
+
+    // --- 2D投影・画像出力 ---
+    function draw2DProjection(innerP, originPt, compP) {
+      const canvas = document.getElementById('projection-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+      
+      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2, cy = canvas.height / 2;
+      const scale = Math.min(cx, cy) * 0.7; // 外側にラベルの余裕を持たせるため少し縮小
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, scale, 0, Math.PI * 2); ctx.stroke();
+
+      const flatMode = isCurrentFlatMode();
+      let U, V;
+
+      if (flatMode) {
+        U = new THREE.Vector3(1, 0, 0); V = new THREE.Vector3(0, 0, 1);
+      } else {
+        const viewId = document.getElementById('planeSelect').value;
+        const viewVert = shapeData.vertices.find(v => v.id === viewId);
+        if (!viewVert) return;
+        const N = new THREE.Vector3(...viewVert.v).normalize();
+        let up = new THREE.Vector3(0, 1, 0);
+        if (Math.abs(N.y) > 0.99) up = new THREE.Vector3(0, 0, 1);
+        U = new THREE.Vector3().crossVectors(up, N).normalize();
+        V = new THREE.Vector3().crossVectors(N, U).normalize();
+      }
+
+      const project = (ptArray) => {
+        const vec = new THREE.Vector3(ptArray[0], ptArray[1], ptArray[2]);
+        return { u: cx + vec.dot(U) * scale, v: cy + vec.dot(V) * scale };
+      };
+      const projectObj = (obj) => project([obj.x, obj.y, obj.z]);
+
+      // 外枠
+      ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+      shapeData.edges.forEach(edge => {
+        const p1 = project(shapeData.vertices[edge[0]].v);
+        const p2 = project(shapeData.vertices[edge[1]].v);
+        ctx.beginPath(); ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v); ctx.stroke();
+      });
+      ctx.strokeStyle = '#333';
+      shapeData.vertices.forEach(v => {
+        const p = project(v.v);
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(p.u, p.v); ctx.stroke();
+      });
+
+      // 比較データ描画 (自身より下に描画)
+      if (compP) {
+        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)'; ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2;
+        if (shapeData.faces && shapeData.faces.length > 0) {
+          shapeData.faces.forEach(face => {
+            ctx.beginPath();
+            for(let i=0; i<face.length; i++) {
+              const p = projectObj(compP[face[i]]);
+              if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
+            }
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+          });
+        } else {
+          ctx.beginPath();
+          shapeData.edges.forEach(edge => {
+            const p1 = projectObj(compP[edge[0]]); const p2 = projectObj(compP[edge[1]]);
+            ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v);
+          });
+          ctx.stroke();
+        }
+      }
+
+      // 自身の描画
+      ctx.fillStyle = 'rgba(0, 255, 204, 0.3)'; ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
+      if (shapeData.faces && shapeData.faces.length > 0) {
+        shapeData.faces.forEach(face => {
+          ctx.beginPath();
+          for(let i=0; i<face.length; i++) {
+            const p = projectObj(innerP[face[i]]);
+            if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
+          }
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        });
+      } else {
+        ctx.beginPath();
+        shapeData.edges.forEach(edge => {
+          const p1 = projectObj(innerP[edge[0]]); const p2 = projectObj(innerP[edge[1]]);
+          ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v);
+        });
+        ctx.stroke();
+      }
+
+      // 【改修】ラベルテキスト (外側に押し出し)
+      ctx.font = '12px sans-serif'; ctx.fillStyle = '#ccc';
+      shapeData.vertices.forEach(v => {
+        const p = project(v.v);
+        const text = labelMemory[v.id];
+        if (text) {
+          // 中心からのベクトルを計算
+          const dx = p.u - cx;
+          const dy = p.v - cy;
+          const len = Math.sqrt(dx*dx + dy*dy);
+          let lx = p.u, ly = p.v;
+          
+          if (len > 0.1) {
+            // 円周（または点）から12px外側へ押し出す
+            lx = p.u + (dx / len) * 12;
+            ly = p.v + (dy / len) * 12;
+          }
+          
+          // 角度に応じた文字の揃え
+          ctx.textAlign = dx > 5 ? 'left' : (dx < -5 ? 'right' : 'center');
+          ctx.textBaseline = dy > 5 ? 'top' : (dy < -5 ? 'bottom' : 'middle');
+          
+          ctx.fillText(text, lx, ly);
+        }
+      });
+
+      // 原点 (固定0,0,0)
+      const oProj = projectObj({x: 0, y: 0, z: 0});
+      const originName = labelMemory['origin'] || '';
+      const dotStr = "●";
+      ctx.font = 'Bold 14px sans-serif'; ctx.fillStyle = '#00ffcc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(dotStr, oProj.u, oProj.v);
+      if (originName) {
+        ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(" " + originName, oProj.u + ctx.measureText(dotStr).width / 2, oProj.v + 1);
+      }
+      
+      // 重心 (黄色のプロット) - 最前面として最後に描画
+      const cProj = projectObj(originPt);
+      ctx.fillStyle = 'rgba(255, 255, 0, 0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
+    }
+
+    async function exportAll2DMaps() {
+      const canvas = document.getElementById('projection-canvas');
+      const planeSelect = document.getElementById('planeSelect');
+      const originalPlane = planeSelect.value;
+      const flatMode = isCurrentFlatMode();
+      
+      alert('すべての投影パターンのダウンロードを開始します。\n※ブラウザの「複数ファイルのダウンロード許可」を求められた場合は許可してください。');
+
+      if (flatMode) {
+        const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 1.0);
+        a.download = `2D_FlatPolygon_projection.jpg`; a.click();
+      } else {
+        for(const vert of shapeData.vertices) {
+          planeSelect.value = vert.id; updatePlot();
+          await new Promise(r => setTimeout(r, 100));
+          const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 1.0);
+          const safeLabel = (labelMemory[vert.id] || vert.name).replace(/\//g, '_');
+          a.download = `2D_${safeLabel}_projection.jpg`; a.click();
+          await new Promise(r => setTimeout(r, 600));
+        }
+        planeSelect.value = originalPlane; updatePlot();
+      }
+    }
+
+    function onWindowResize() {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      updatePlot(); 
+    }
+    window.addEventListener('resize', onWindowResize);
+
+    // --- HTMLエクスポート ---
+    function prepareStateScript(isViewer) {
+      document.querySelectorAll('input[type="range"], input[type="text"], input[type="number"], textarea').forEach(el => {
+        if (el.tagName === 'TEXTAREA') { el.textContent = el.value; } else { el.setAttribute('value', el.value); }
+      });
+      document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+        if(el.checked) el.setAttribute('checked', 'checked'); else el.removeAttribute('checked');
+      });
+      document.querySelectorAll('select').forEach(el => {
+        Array.from(el.options).forEach(opt => { if(opt.selected) opt.setAttribute('selected', 'selected'); else opt.removeAttribute('selected'); });
+      });
+      document.getElementById('lockScores').setAttribute('checked', 'checked');
+
+      let stateScript = document.getElementById('save-state') || document.createElement('script');
+      stateScript.id = 'save-state'; stateScript.type = 'application/json';
+      document.head.appendChild(stateScript);
+      
+      const flatEl = document.getElementById('flatPolygonToggle');
+      const enhanceEl = document.getElementById('enhanceMovement');
+      
+      const stateObj = {
+        shape: document.getElementById('shapeSelect').value,
+        customVertices: document.getElementById('customVertices').value,
+        is2DFlat: flatEl ? flatEl.checked : false,
+        enhanceMovement: enhanceEl ? enhanceEl.checked : false,
+        labels: labelMemory, scores: scoreMemory,
+        memoText: document.getElementById('memoInput').value,
+        photos: photosList,
+        isViewerMode: isViewer
+      };
+      stateScript.textContent = JSON.stringify(stateObj);
+      return stateObj;
+    }
+
+    function exportHTML() {
+      prepareStateScript(false);
+      const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      let filename = prompt("保存するファイル名を入力", "3d_evaluation_chart.html");
+      if (!filename) return;
+      if (!filename.endsWith('.html')) filename += '.html';
+      a.download = filename; a.click();
+    }
+
+    function exportViewerHTML() {
+      const originalObj = prepareStateScript(true);
+      const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      
+      originalObj.isViewerMode = false;
+      document.getElementById('save-state').textContent = JSON.stringify(originalObj);
+
+      let filename = prompt("保存する閲覧用ファイル名を入力", "viewer_eval_chart.html");
+      if (!filename) return;
+      if (!filename.endsWith('.html')) filename += '.html';
+
+      const blob = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = filename; a.click();
+      alert("閲覧専用のHTMLをダウンロードしました。\nこのファイルは編集不可で軽量化されており、他者との共有（LINEやAirDropなど）に最適です。");
+    }
+
+    function loadSavedState() {
+      const savedMemo = localStorage.getItem('eval_chart_memo');
+      if (savedMemo !== null) document.getElementById('memoInput').value = savedMemo;
+      const savedPhotos = localStorage.getItem('eval_chart_photos');
+      if (savedPhotos !== null) { try { photosList = JSON.parse(savedPhotos); } catch(e){} }
+
+      const stateScript = document.getElementById('save-state');
+      if (stateScript && stateScript.textContent) {
+        try {
+          const stateObj = JSON.parse(stateScript.textContent);
+          if (stateObj.isViewerMode) {
+            document.body.classList.add('viewer-mode');
+            document.getElementById('lockScores').checked = true;
+            document.getElementById('memoInput').disabled = true;
+            if(stateObj.photos && stateObj.photos.length > 0) document.getElementById('viewer-album-btn').style.display = 'flex';
+          }
+          document.getElementById('shapeSelect').value = stateObj.shape;
+          if(stateObj.customVertices) document.getElementById('customVertices').value = stateObj.customVertices;
+          if(stateObj.is2DFlat !== undefined && document.getElementById('flatPolygonToggle')) {
+            document.getElementById('flatPolygonToggle').checked = stateObj.is2DFlat;
+          }
+          if(stateObj.enhanceMovement !== undefined && document.getElementById('enhanceMovement')) {
+            document.getElementById('enhanceMovement').checked = stateObj.enhanceMovement;
+          }
+          labelMemory = stateObj.labels || labelMemory;
+          scoreMemory = stateObj.scores || scoreMemory;
+          if(stateObj.memoText !== undefined) document.getElementById('memoInput').value = stateObj.memoText;
+          if(stateObj.photos) photosList = stateObj.photos;
+        } catch(e) { console.error("復元失敗", e); }
+      }
+
+      document.getElementById('photoCount').innerText = photosList.length;
+      toggleCustomConfig();
+      initShapeUI();
+      
+      if (document.body.classList.contains('viewer-mode')) {
+        document.querySelectorAll('input[type="text"]').forEach(el => el.disabled = true);
+      }
+
+      if (window.innerWidth <= 900) setMobileTab('config');
+      
+      setTimeout(onWindowResize, 100);
+    }
+
+    loadSavedState();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
