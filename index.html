@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v21</title>
+  <title>立体評価チャート・プロトタイプ v22</title>
   <style>
     :root {
       --bottom-panel-height: 40vh;
@@ -108,6 +108,7 @@
     #mobile-nav { 
       display: none; background: #111; padding: 6px 4px; border-bottom: 1px solid #444; 
       width: 100%; flex-direction: row; justify-content: space-between; gap: 4px; 
+      position: sticky; top: 0; z-index: 1000; /* 常時表示用 */
     }
     .nav-btn { 
       background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; 
@@ -120,8 +121,6 @@
     
     #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
     #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
-
-    .canvas-container.mobile-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100% !important; height: 100% !important; z-index: 90; }
 
     /* === モバイル・タブレット表示用のレイアウト再構築 === */
     @media (max-width: 900px) {
@@ -152,7 +151,7 @@
       body.tab-2d #det-2d { display: block !important; }
       body.tab-memo #det-memo { display: block !important; }
 
-      #mobile-view-toggle { display: block !important; }
+      #mobile-flat-toggle { display: block !important; }
     }
 
     /* === Viewerモード (閲覧専用HTML用) === */
@@ -202,7 +201,7 @@
     <!-- 設定・比較セクション -->
     <div id="det-config" class="mobile-section">
       <div class="row-group">
-        <h3>評価プロトタイプ v21</h3>
+        <h3>評価プロトタイプ v22</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
@@ -265,7 +264,6 @@
             <input type="range" id="labelSize" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updatePlot()">
           </div>
           
-          <!-- 色・見た目の詳細設定 -->
           <details style="margin-top:5px;">
             <summary style="font-size: 13px;">🎨 色と見た目の詳細設定</summary>
             <div class="section-content">
@@ -317,7 +315,7 @@
 
   <!-- 中央: 3Dビューポート -->
   <div id="viewport-container">
-    <button id="mobile-view-toggle" class="secondary-btn" onclick="toggleMobileView()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 2Dマップ切替</button>
+    <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 平面(2D)化</button>
     <div id="viewport"></div>
   </div>
 
@@ -332,7 +330,8 @@
           <button class="secondary-btn" onclick="toggleMemo()">ノート表示/非表示</button>
           <button class="secondary-btn" onclick="document.getElementById('photoInput').click()">📷 写真追加</button>
           <button class="secondary-btn" onclick="openAlbum()">🖼️ アルバム (<span id="photoCount">0</span>/4)</button>
-          <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoAdd(event)">
+          <!-- capture="environment" を削除し、アルバムも選べるように修正 -->
+          <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="handlePhotoAdd(event)">
         </div>
         <div class="row-group" id="viewer-album-btn" style="display:none;">
           <button class="primary-btn" onclick="openAlbum()">🖼️ 添付写真を見る</button>
@@ -462,29 +461,32 @@
       setTimeout(onWindowResize, 50); 
     }
 
-    function toggleMobileView() {
-      isMobile2DView = !isMobile2DView;
-      const canvasContainer = document.getElementById('main-canvas-container');
-      const viewportContainer = document.getElementById('viewport-container');
-      const originalParent = document.getElementById('2d-section-content');
-      const btn = document.getElementById('mobile-view-toggle');
-      
-      if (isMobile2DView) {
-        canvasContainer.classList.add('mobile-overlay');
-        viewportContainer.appendChild(canvasContainer);
-        btn.innerHTML = "<span style='font-size:16px;'>🌐</span> 3Dビュー切替";
-        btn.style.background = "#ffaa00";
-        btn.style.color = "#000";
-      } else {
-        canvasContainer.classList.remove('mobile-overlay');
-        originalParent.appendChild(canvasContainer);
-        btn.innerHTML = "<span style='font-size:16px;'>🗺️</span> 2Dマップ切替";
-        btn.style.background = "";
-        btn.style.color = "";
+    // --- モバイル 平面(2D)化トグル ---
+    function toggleFlatModeMobile() {
+      const flatEl = document.getElementById('flatPolygonToggle');
+      if (flatEl) {
+        flatEl.checked = !flatEl.checked;
+        initShapeUI();
       }
-      setTimeout(updatePlot, 50);
+    }
+    
+    function updateMobileFlatButton() {
+      const btn = document.getElementById('mobile-flat-toggle');
+      const flatEl = document.getElementById('flatPolygonToggle');
+      if (btn && flatEl) {
+        if (flatEl.checked) {
+          btn.innerHTML = "<span style='font-size:16px;'>🌐</span> 立体(3D)化";
+          btn.style.background = "#ffaa00";
+          btn.style.color = "#000";
+        } else {
+          btn.innerHTML = "<span style='font-size:16px;'>🗺️</span> 平面(2D)化";
+          btn.style.background = "";
+          btn.style.color = "";
+        }
+      }
     }
 
+    // --- ヘルプダイアログ ---
     function showQRInfo() {
       alert("【共有・QRコードについて】\n\nQRコード自体にはデータ容量の制限があるため、HTMLファイルを直接QRコードに埋め込むことは不可能です。\n\n◆ 解決策（サーバー不要の共有）\n1. 「閲覧用保存」ボタンで軽量な専用HTMLをダウンロードします。\n2. そのファイルをLINE、メール、AirDropなどでスマホや他者に共有します。\n3. 受け取った側はブラウザでファイルを開くだけで、専用アプリやサーバーなしで3D閲覧と比較機能が利用可能です。");
     }
@@ -810,6 +812,8 @@
       const flatEl = document.getElementById('flatPolygonToggle');
       const is2DFlat = flatEl ? flatEl.checked : false;
       
+      updateMobileFlatButton();
+
       if (type === 'custom') {
         const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
         shapeData = generateCustomShape(Math.max(vertCount, 2), is2DFlat);
@@ -1068,7 +1072,6 @@
         const faces = []; shapeData.faces.forEach(f => faces.push(...f));
         regionGeo.setIndex(faces);
         
-        // 面の描画
         const regionMat = new THREE.MeshBasicMaterial({ 
           color: mainColorHex, transparent: true, opacity: faceOpacity, 
           side: THREE.DoubleSide, depthWrite: false 
@@ -1076,7 +1079,6 @@
         const regionMesh = new THREE.Mesh(regionGeo, regionMat);
         regionGroup.add(regionMesh);
 
-        // 【改修】外形線の抽出描画 (EdgesGeometry)
         const edgesGeo = new THREE.EdgesGeometry(regionGeo);
         const edgesMat = new THREE.LineBasicMaterial({ 
           color: mainColorHex, transparent: true, opacity: lineOpacity, 
@@ -1086,7 +1088,6 @@
         regionGroup.add(edgesLine);
 
       } else {
-        // 2D平面(線分のみ)などのフォールバック
         const innerWireGeo = new THREE.BufferGeometry(); const innerWirePos = [];
         shapeData.edges.forEach(edge => {
           innerWirePos.push(P[edge[0]].x, P[edge[0]].y, P[edge[0]].z);
@@ -1098,8 +1099,12 @@
 
       // --- 比較データの描画 (3D) ---
       let compP = null;
+      let compCx = 0, compCy = 0, compCz = 0;
+
       if (compareData && compareData.labels && compareData.scores) {
         compP = [];
+        let cSumX = 0, cSumY = 0, cSumZ = 0;
+        
         shapeData.vertices.forEach(vert => {
           const currentLabelName = labelMemory[vert.id] || vert.defaultLabel;
           let compScore = 0;
@@ -1110,8 +1115,25 @@
           if (matchedId && compareData.scores[matchedId] !== undefined) {
             compScore = compareData.scores[matchedId];
           }
-          compP.push({ x: vert.v[0] * compScore, y: vert.v[1] * compScore, z: vert.v[2] * compScore });
+          const cpx = vert.v[0] * compScore, cpy = vert.v[1] * compScore, cpz = vert.v[2] * compScore;
+          compP.push({ x: cpx, y: cpy, z: cpz });
+          cSumX += cpx; cSumY += cpy; cSumZ += cpz;
         });
+
+        let ccnt = compP.length || 1;
+        compCx = cSumX / ccnt; compCy = cSumY / ccnt; compCz = cSumZ / ccnt;
+
+        if (enhanceCheck && enhanceCheck.checked) {
+          const factor = ccnt; 
+          compCx *= factor; compCy *= factor; compCz *= factor;
+          const dist = Math.sqrt(compCx*compCx + compCy*compCy + compCz*compCz);
+          const maxDist = 1.2;
+          if (dist > maxDist) {
+            compCx = (compCx / dist) * maxDist;
+            compCy = (compCy / dist) * maxDist;
+            compCz = (compCz / dist) * maxDist;
+          }
+        }
 
         if (shapeData.faces && shapeData.faces.length > 0) {
           const compGeo = new THREE.BufferGeometry();
@@ -1122,7 +1144,7 @@
           compGeo.setIndex(faces);
           
           const compMat = new THREE.MeshBasicMaterial({ 
-            color: compColorHex, transparent: true, opacity: faceOpacity * 0.75, // 比較は少し薄く
+            color: compColorHex, transparent: true, opacity: faceOpacity * 0.75,
             side: THREE.DoubleSide, depthWrite: false 
           });
           compareGroup.add(new THREE.Mesh(compGeo, compMat));
@@ -1142,6 +1164,21 @@
           compWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(compWirePos, 3));
           compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: compColorHex, transparent: true, opacity: lineOpacity })));
         }
+
+        // 比較用 重心プロットの追加 (3D)
+        const compPointGeo = new THREE.SphereGeometry(0.06, 32, 32);
+        const compPointMat = new THREE.MeshBasicMaterial({ color: compColorHex, depthTest: false });
+        const compPointMesh = new THREE.Mesh(compPointGeo, compPointMat);
+        compPointMesh.renderOrder = 9999;
+        
+        const compAura = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12, 32, 32), 
+          new THREE.MeshBasicMaterial({ color: compColorHex, transparent: true, opacity: 0.4, depthTest: false })
+        );
+        compAura.renderOrder = 9998;
+        compPointMesh.add(compAura);
+        compPointMesh.position.set(compCx, compCy, compCz);
+        compareGroup.add(compPointMesh);
       }
 
       // --- ラベル描画 ---
@@ -1167,11 +1204,11 @@
         }
       });
 
-      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP, mainColorHex, compColorHex, faceOpacity, lineOpacity);
+      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP, {x: compCx, y: compCy, z: compCz}, mainColorHex, compColorHex, faceOpacity, lineOpacity);
     }
 
     // --- 2D投影・画像出力 ---
-    function draw2DProjection(innerP, originPt, compP, mainHex, compHex, fOpacity, lOpacity) {
+    function draw2DProjection(innerP, originPt, compP, compOriginPt, mainHex, compHex, fOpacity, lOpacity) {
       const canvas = document.getElementById('projection-canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
@@ -1307,7 +1344,14 @@
         ctx.fillText(" " + originName, oProj.u + ctx.measureText(dotStr).width / 2, oProj.v + 1);
       }
       
-      // 重心 (黄色のプロット) 
+      // 比較データ用 重心 (2D)
+      if (compP && compOriginPt) {
+        const cpProj = projectObj(compOriginPt);
+        ctx.fillStyle = hexToRgba(compHex, 0.4); ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = compHex; ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 5, 0, Math.PI*2); ctx.fill();
+      }
+
+      // 自身の重心 (黄色のプロット) 
       const cProj = projectObj(originPt);
       ctx.fillStyle = 'rgba(255, 255, 0, 0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
