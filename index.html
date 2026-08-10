@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v20</title>
+  <title>立体評価チャート・プロトタイプ v21</title>
   <style>
     :root {
       --bottom-panel-height: 40vh;
@@ -26,26 +26,20 @@
       box-shadow: -2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
     }
 
-    /* 左リサイザー */
-    #resizer {
-      width: 24px; height: 100%; position: absolute; right: -12px; top: 0;
+    /* 左・右 リサイザー */
+    #resizer, #resizer-right {
+      width: 24px; height: 100%; position: absolute; top: 0;
       cursor: col-resize; z-index: 100; touch-action: none;
     }
-    #resizer::after {
-      content: ''; position: absolute; left: 11px; top: 0; width: 2px; height: 100%;
-      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s, left 0.15s;
+    #resizer { right: -12px; }
+    #resizer-right { left: -12px; }
+    #resizer::after, #resizer-right::after {
+      content: ''; position: absolute; top: 0; width: 2px; height: 100%;
+      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s;
     }
+    #resizer::after { left: 11px; }
+    #resizer-right::after { right: 11px; }
     #resizer:hover::after, #resizer.resizing::after { background: #00ffcc; width: 4px; left: 10px; }
-
-    /* 右リサイザー */
-    #resizer-right {
-      width: 24px; height: 100%; position: absolute; left: -12px; top: 0;
-      cursor: col-resize; z-index: 100; touch-action: none;
-    }
-    #resizer-right::after {
-      content: ''; position: absolute; right: 11px; top: 0; width: 2px; height: 100%;
-      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s, right 0.15s;
-    }
     #resizer-right:hover::after, #resizer-right.resizing::after { background: #00ffcc; width: 4px; right: 10px; }
 
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
@@ -69,6 +63,7 @@
       padding: 8px; background: #333; color: #fff; border: 1px solid #555; 
       border-radius: 4px; font-size: 14px; width: 100%; 
     }
+    input[type="color"] { padding: 0; border: 1px solid #555; border-radius: 4px; height: 28px; width: 60px; cursor: pointer; background: #333; }
     input[type="text"]:disabled { opacity: 0.5; color: #aaa; cursor: not-allowed; border-color: #444; }
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -126,7 +121,6 @@
     #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
     #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
 
-    /* モバイル時Canvasオーバーレイ用 */
     .canvas-container.mobile-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100% !important; height: 100% !important; z-index: 90; }
 
     /* === モバイル・タブレット表示用のレイアウト再構築 === */
@@ -208,7 +202,7 @@
     <!-- 設定・比較セクション -->
     <div id="det-config" class="mobile-section">
       <div class="row-group">
-        <h3>評価プロトタイプ v20</h3>
+        <h3>評価プロトタイプ v21</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
@@ -232,7 +226,6 @@
         </select>
       </div>
       
-      <!-- 自由設計用の設定エリア -->
       <div id="custom-config" style="display:none;" class="row-group edit-only">
         <label>頂点の数 (2〜50):</label>
         <input type="number" id="customVertices" min="2" max="50" value="12" style="width: 70px;" onchange="rebuildCustom()">
@@ -265,23 +258,47 @@
           <div class="row-group" style="justify-content: flex-start; gap: 5px;">
             <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
             <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
-            <button class="help-btn-small" onclick="showEnhanceInfo()">?</button>
+            <button class="help-btn-small" style="border-radius:50%; width:18px; height:18px;" onclick="showEnhanceInfo()">?</button>
           </div>
           <div class="control-group">
             <label>3Dラベルのサイズ</label>
             <input type="range" id="labelSize" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updatePlot()">
           </div>
+          
+          <!-- 色・見た目の詳細設定 -->
+          <details style="margin-top:5px;">
+            <summary style="font-size: 13px;">🎨 色と見た目の詳細設定</summary>
+            <div class="section-content">
+              <div class="row-group">
+                <label>メインカラー</label>
+                <input type="color" id="mainColor" value="#00ffcc" oninput="updatePlot()">
+              </div>
+              <div class="row-group">
+                <label>比較カラー</label>
+                <input type="color" id="compColor" value="#ff00ff" oninput="updatePlot()">
+              </div>
+              <div class="control-group">
+                <label>面の透明度</label>
+                <input type="range" id="faceOpacity" min="0" max="1" step="0.05" value="0.4" oninput="updatePlot()">
+              </div>
+              <div class="control-group">
+                <label>線の濃さ（透明度）</label>
+                <input type="range" id="lineOpacity" min="0" max="1" step="0.05" value="0.9" oninput="updatePlot()">
+              </div>
+            </div>
+          </details>
+
         </div>
       </details>
     </div>
 
+    <!-- ラベル設定 -->
     <details open id="det-label" class="mobile-section">
       <summary>1. 頂点ラベル設定 (入替可能)</summary>
-      <div class="section-content" id="labels-container">
-        <!-- 動的生成エリア -->
-      </div>
+      <div class="section-content" id="labels-container"></div>
     </details>
 
+    <!-- スコア設定 -->
     <details open id="det-score" class="mobile-section">
       <summary>2. 評価スコア入力</summary>
       <div class="section-content">
@@ -331,9 +348,7 @@
       <div class="section-content" id="2d-section-content">
         <div class="control-group">
           <label>投影平面 (指定した頂点から見下ろす)</label>
-          <select id="planeSelect" onchange="updatePlot()">
-            <!-- 動的生成エリア -->
-          </select>
+          <select id="planeSelect" onchange="updatePlot()"></select>
         </div>
         <button class="secondary-btn edit-only" onclick="exportAll2DMaps()">全パターンの投影マップをJPG保存</button>
         <div class="canvas-container" id="main-canvas-container">
@@ -353,6 +368,16 @@
   </div>
 
   <script>
+    // --- ユーティリティ: HEXからRGBA変換 ---
+    function hexToRgba(hex, alpha) {
+      hex = hex.replace(/^#/, '');
+      if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
     // --- UIリサイズ制御 (左サイドバー用・PC) ---
     const sidebar = document.getElementById('sidebar');
     const resizer = document.getElementById('resizer');
@@ -437,8 +462,6 @@
       setTimeout(onWindowResize, 50); 
     }
 
-    // --- モバイル 3D/2D ビュー切り替え ---
-    let isMobile2DView = false;
     function toggleMobileView() {
       isMobile2DView = !isMobile2DView;
       const canvasContainer = document.getElementById('main-canvas-container');
@@ -462,7 +485,6 @@
       setTimeout(updatePlot, 50);
     }
 
-    // --- ヘルプダイアログ ---
     function showQRInfo() {
       alert("【共有・QRコードについて】\n\nQRコード自体にはデータ容量の制限があるため、HTMLファイルを直接QRコードに埋め込むことは不可能です。\n\n◆ 解決策（サーバー不要の共有）\n1. 「閲覧用保存」ボタンで軽量な専用HTMLをダウンロードします。\n2. そのファイルをLINE、メール、AirDropなどでスマホや他者に共有します。\n3. 受け取った側はブラウザでファイルを開くだけで、専用アプリやサーバーなしで3D閲覧と比較機能が利用可能です。");
     }
@@ -593,12 +615,12 @@
           { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] }
         ].map(pt => { pt.v = pt.v.map(val => val / Math.sqrt(3)); return pt; }), 
         faces: [
-          [0,1,2], [0,2,3], // Top
-          [4,6,5], [4,7,6], // Bottom 
-          [0,5,1], [0,4,5], // Front
-          [1,6,2], [1,5,6], // Left
-          [2,7,3], [2,6,7], // Back
-          [3,4,0], [3,7,4]  // Right
+          [0,1,2], [0,2,3], 
+          [4,6,5], [4,7,6],  
+          [0,5,1], [0,4,5], 
+          [1,6,2], [1,5,6], 
+          [2,7,3], [2,6,7], 
+          [3,4,0], [3,7,4]  
         ]
       }
     };
@@ -928,7 +950,7 @@
           try {
             compareData = JSON.parse(stateScript.textContent);
             document.getElementById('clearCompareBtn').style.display = 'block';
-            document.getElementById('compare-info').innerText = "✅ 比較データを表示中 (ピンク)";
+            document.getElementById('compare-info').innerText = "✅ 比較データを表示中";
             updatePlot();
           } catch (err) { alert('データが読み込めませんでした。'); }
         } else { alert('比較用データが見つかりません。'); }
@@ -1031,7 +1053,13 @@
       while(regionGroup.children.length > 0) regionGroup.remove(regionGroup.children[0]);
       while(compareGroup.children.length > 0) compareGroup.remove(compareGroup.children[0]);
 
-      // 自身のポリゴン描画
+      // --- 詳細設定の取得 ---
+      const mainColorHex = document.getElementById('mainColor') ? document.getElementById('mainColor').value : '#00ffcc';
+      const compColorHex = document.getElementById('compColor') ? document.getElementById('compColor').value : '#ff00ff';
+      const faceOpacity = document.getElementById('faceOpacity') ? parseFloat(document.getElementById('faceOpacity').value) : 0.4;
+      const lineOpacity = document.getElementById('lineOpacity') ? parseFloat(document.getElementById('lineOpacity').value) : 0.9;
+
+      // --- 自身の描画 (3D) ---
       if (shapeData.faces && shapeData.faces.length > 0) {
         const regionGeo = new THREE.BufferGeometry();
         const posArray = new Float32Array(P.length * 3);
@@ -1039,20 +1067,36 @@
         regionGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
         const faces = []; shapeData.faces.forEach(f => faces.push(...f));
         regionGeo.setIndex(faces);
-        // depthWrite: false にして凹みの重なりを柔らかく描画
-        const regionMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
-        regionGroup.add(new THREE.Mesh(regionGeo, regionMat));
+        
+        // 面の描画
+        const regionMat = new THREE.MeshBasicMaterial({ 
+          color: mainColorHex, transparent: true, opacity: faceOpacity, 
+          side: THREE.DoubleSide, depthWrite: false 
+        });
+        const regionMesh = new THREE.Mesh(regionGeo, regionMat);
+        regionGroup.add(regionMesh);
+
+        // 【改修】外形線の抽出描画 (EdgesGeometry)
+        const edgesGeo = new THREE.EdgesGeometry(regionGeo);
+        const edgesMat = new THREE.LineBasicMaterial({ 
+          color: mainColorHex, transparent: true, opacity: lineOpacity, 
+          linewidth: 2, depthTest: true, depthWrite: true
+        });
+        const edgesLine = new THREE.LineSegments(edgesGeo, edgesMat);
+        regionGroup.add(edgesLine);
+
+      } else {
+        // 2D平面(線分のみ)などのフォールバック
+        const innerWireGeo = new THREE.BufferGeometry(); const innerWirePos = [];
+        shapeData.edges.forEach(edge => {
+          innerWirePos.push(P[edge[0]].x, P[edge[0]].y, P[edge[0]].z);
+          innerWirePos.push(P[edge[1]].x, P[edge[1]].y, P[edge[1]].z);
+        });
+        innerWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(innerWirePos, 3));
+        regionGroup.add(new THREE.LineSegments(innerWireGeo, new THREE.LineBasicMaterial({ color: mainColorHex, transparent: true, opacity: lineOpacity })));
       }
 
-      const innerWireGeo = new THREE.BufferGeometry(); const innerWirePos = [];
-      shapeData.edges.forEach(edge => {
-        innerWirePos.push(P[edge[0]].x, P[edge[0]].y, P[edge[0]].z);
-        innerWirePos.push(P[edge[1]].x, P[edge[1]].y, P[edge[1]].z);
-      });
-      innerWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(innerWirePos, 3));
-      regionGroup.add(new THREE.LineSegments(innerWireGeo, new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.8 })));
-
-      // 比較データの描画
+      // --- 比較データの描画 (3D) ---
       let compP = null;
       if (compareData && compareData.labels && compareData.scores) {
         compP = [];
@@ -1076,20 +1120,31 @@
           compGeo.setAttribute('position', new THREE.BufferAttribute(compPos, 3));
           const faces = []; shapeData.faces.forEach(f => faces.push(...f));
           compGeo.setIndex(faces);
-          const compMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+          
+          const compMat = new THREE.MeshBasicMaterial({ 
+            color: compColorHex, transparent: true, opacity: faceOpacity * 0.75, // 比較は少し薄く
+            side: THREE.DoubleSide, depthWrite: false 
+          });
           compareGroup.add(new THREE.Mesh(compGeo, compMat));
-        }
 
-        const compWireGeo = new THREE.BufferGeometry(); const compWirePos = [];
-        shapeData.edges.forEach(edge => {
-          compWirePos.push(compP[edge[0]].x, compP[edge[0]].y, compP[edge[0]].z);
-          compWirePos.push(compP[edge[1]].x, compP[edge[1]].y, compP[edge[1]].z);
-        });
-        compWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(compWirePos, 3));
-        compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.8 })));
+          const compEdgesGeo = new THREE.EdgesGeometry(compGeo);
+          const compEdgesMat = new THREE.LineBasicMaterial({ 
+            color: compColorHex, transparent: true, opacity: lineOpacity * 0.9, 
+            linewidth: 2, depthTest: true, depthWrite: true
+          });
+          compareGroup.add(new THREE.LineSegments(compEdgesGeo, compEdgesMat));
+        } else {
+          const compWireGeo = new THREE.BufferGeometry(); const compWirePos = [];
+          shapeData.edges.forEach(edge => {
+            compWirePos.push(compP[edge[0]].x, compP[edge[0]].y, compP[edge[0]].z);
+            compWirePos.push(compP[edge[1]].x, compP[edge[1]].y, compP[edge[1]].z);
+          });
+          compWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(compWirePos, 3));
+          compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: compColorHex, transparent: true, opacity: lineOpacity })));
+        }
       }
 
-      // ラベル描画
+      // --- ラベル描画 ---
       while(labelGroup.children.length > 0) {
         const c = labelGroup.children[0];
         if (c.material.map) c.material.map.dispose();
@@ -1099,7 +1154,7 @@
       
       const originText = labelMemory['origin'];
       if (originText !== undefined) {
-        const sp = createOriginTextSprite(originText, '#00ffcc', scaleFactor);
+        const sp = createOriginTextSprite(originText, mainColorHex, scaleFactor);
         sp.position.set(0, 0, 0); 
         labelGroup.add(sp);
       }
@@ -1112,11 +1167,11 @@
         }
       });
 
-      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP);
+      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP, mainColorHex, compColorHex, faceOpacity, lineOpacity);
     }
 
     // --- 2D投影・画像出力 ---
-    function draw2DProjection(innerP, originPt, compP) {
+    function draw2DProjection(innerP, originPt, compP, mainHex, compHex, fOpacity, lOpacity) {
       const canvas = document.getElementById('projection-canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
@@ -1150,7 +1205,7 @@
       };
       const projectObj = (obj) => project([obj.x, obj.y, obj.z]);
 
-      // 【2D凸包(Convex Hull)によるシルエット抽出】
+      // 2D凸包(Convex Hull)によるシルエット抽出
       const getConvexHullIndices = (points) => {
         if (points.length <= 3) return points.map(p => p.index);
         const sorted = points.slice().sort((a, b) => a.u !== b.u ? a.u - b.u : a.v - b.v);
@@ -1199,7 +1254,9 @@
 
       // 比較データ描画
       if (compP) {
-        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)'; ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2;
+        ctx.fillStyle = hexToRgba(compHex, fOpacity * 0.5); 
+        ctx.strokeStyle = hexToRgba(compHex, lOpacity); 
+        ctx.lineWidth = 2;
         ctx.beginPath();
         for(let i=0; i<perimeterIndices.length; i++) {
           const p = projectObj(compP[perimeterIndices[i]]);
@@ -1209,7 +1266,9 @@
       }
 
       // 自身の描画
-      ctx.fillStyle = 'rgba(0, 255, 204, 0.3)'; ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
+      ctx.fillStyle = hexToRgba(mainHex, fOpacity * 0.75); 
+      ctx.strokeStyle = hexToRgba(mainHex, lOpacity); 
+      ctx.lineWidth = 2;
       ctx.beginPath();
       for(let i=0; i<perimeterIndices.length; i++) {
         const p = projectObj(innerP[perimeterIndices[i]]);
@@ -1217,7 +1276,7 @@
       }
       ctx.closePath(); ctx.fill(); ctx.stroke();
 
-      // ラベルテキスト (外側に押し出し)
+      // ラベルテキスト
       ctx.font = '12px sans-serif'; ctx.fillStyle = '#ccc';
       shapeData.vertices.forEach(v => {
         const p = project(v.v);
@@ -1227,15 +1286,12 @@
           const dy = p.v - cy;
           const len = Math.sqrt(dx*dx + dy*dy);
           let lx = p.u, ly = p.v;
-          
           if (len > 0.1) {
             lx = p.u + (dx / len) * 14;
             ly = p.v + (dy / len) * 14;
           }
-          
           ctx.textAlign = dx > 5 ? 'left' : (dx < -5 ? 'right' : 'center');
           ctx.textBaseline = dy > 5 ? 'top' : (dy < -5 ? 'bottom' : 'middle');
-          
           ctx.fillText(text, lx, ly);
         }
       });
@@ -1244,7 +1300,7 @@
       const oProj = projectObj({x: 0, y: 0, z: 0});
       const originName = labelMemory['origin'] || '';
       const dotStr = "●";
-      ctx.font = 'Bold 14px sans-serif'; ctx.fillStyle = '#00ffcc'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = 'Bold 14px sans-serif'; ctx.fillStyle = mainHex; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(dotStr, oProj.u, oProj.v);
       if (originName) {
         ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
@@ -1291,7 +1347,7 @@
 
     // --- HTMLエクスポート ---
     function prepareStateScript(isViewer) {
-      document.querySelectorAll('input[type="range"], input[type="text"], input[type="number"], textarea').forEach(el => {
+      document.querySelectorAll('input[type="range"], input[type="text"], input[type="number"], input[type="color"], textarea').forEach(el => {
         if (el.tagName === 'TEXTAREA') { el.textContent = el.value; } else { el.setAttribute('value', el.value); }
       });
       document.querySelectorAll('input[type="checkbox"]').forEach(el => {
@@ -1308,12 +1364,20 @@
       
       const flatEl = document.getElementById('flatPolygonToggle');
       const enhanceEl = document.getElementById('enhanceMovement');
+      const mainCol = document.getElementById('mainColor');
+      const compCol = document.getElementById('compColor');
+      const fOpac = document.getElementById('faceOpacity');
+      const lOpac = document.getElementById('lineOpacity');
       
       const stateObj = {
         shape: document.getElementById('shapeSelect').value,
         customVertices: document.getElementById('customVertices').value,
         is2DFlat: flatEl ? flatEl.checked : false,
         enhanceMovement: enhanceEl ? enhanceEl.checked : false,
+        mainColor: mainCol ? mainCol.value : '#00ffcc',
+        compColor: compCol ? compCol.value : '#ff00ff',
+        faceOpacity: fOpac ? fOpac.value : '0.4',
+        lineOpacity: lOpac ? lOpac.value : '0.9',
         labels: labelMemory, scores: scoreMemory,
         memoText: document.getElementById('memoInput').value,
         photos: photosList,
@@ -1375,6 +1439,11 @@
           if(stateObj.enhanceMovement !== undefined && document.getElementById('enhanceMovement')) {
             document.getElementById('enhanceMovement').checked = stateObj.enhanceMovement;
           }
+          if(stateObj.mainColor && document.getElementById('mainColor')) document.getElementById('mainColor').value = stateObj.mainColor;
+          if(stateObj.compColor && document.getElementById('compColor')) document.getElementById('compColor').value = stateObj.compColor;
+          if(stateObj.faceOpacity && document.getElementById('faceOpacity')) document.getElementById('faceOpacity').value = stateObj.faceOpacity;
+          if(stateObj.lineOpacity && document.getElementById('lineOpacity')) document.getElementById('lineOpacity').value = stateObj.lineOpacity;
+
           labelMemory = stateObj.labels || labelMemory;
           scoreMemory = stateObj.scores || scoreMemory;
           if(stateObj.memoText !== undefined) document.getElementById('memoInput').value = stateObj.memoText;
