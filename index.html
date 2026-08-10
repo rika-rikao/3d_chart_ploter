@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v18</title>
+  <title>立体評価チャート・プロトタイプ v19</title>
   <style>
     :root {
       --bottom-panel-height: 40vh;
@@ -208,7 +208,7 @@
     <!-- 設定・比較セクション -->
     <div id="det-config" class="mobile-section">
       <div class="row-group">
-        <h3>評価プロトタイプ v18</h3>
+        <h3>評価プロトタイプ v19</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
@@ -592,7 +592,7 @@
           { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] },
           { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] },
           { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] }
-        ].map(pt => { pt.v = pt.v.map(val => val / Math.sqrt(3)); return pt; }), // 半径1の球に内接するよう調整
+        ].map(pt => { pt.v = pt.v.map(val => val / Math.sqrt(3)); return pt; }), 
         faces: [
           [0,1,2], [0,2,3], // Top
           [4,6,5], [4,7,6], // Bottom 
@@ -623,12 +623,16 @@
       let explicitEdges = null;
 
       if (is2DFlat || n < 4) {
+        explicitEdges = [];
         for (let i = 0; i < n; i++) {
           const angle = (2 * Math.PI * i) / n - Math.PI / 2;
           points.push(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)));
+          if (n > 2) explicitEdges.push([i, (i + 1) % n]);
         }
         if (n === 2) { explicitEdges = [[0, 1]]; } 
-        else { for (let i = 1; i < n - 1; i++) { faces.push([0, i, i + 1]); faces.push([0, i + 1, i]); } }
+        else { 
+          for (let i = 1; i < n - 1; i++) { faces.push([0, i, i + 1]); } 
+        }
       } else {
         if (n === 4) {
           const R = 2 * Math.sqrt(2) / 3; const Y_base = -1 / 3;
@@ -653,15 +657,13 @@
           const rawPoints = [ [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], [0, -1/phi, -phi], [0, 1/phi, -phi], [0, -1/phi, phi], [0, 1/phi, phi], [-1/phi, -phi, 0], [1/phi, -phi, 0], [-1/phi, phi, 0], [1/phi, phi, 0], [-phi, 0, -1/phi], [phi, 0, -1/phi], [-phi, 0, 1/phi], [phi, 0, 1/phi] ];
           points = rawPoints.map(p => new THREE.Vector3(p[0]/r, p[1]/r, p[2]/r));
         } else if (n % 2 === 0) {
-          // 偶数の場合: 必ず原点対称な点（点対称ペア）を持つように生成
           const k = n / 2; const h = 0.55; const r = Math.sqrt(1 - h * h);
           for (let i = 0; i < k; i++) {
             const theta = (2 * Math.PI * i) / k;
             points.push(new THREE.Vector3(r * Math.cos(theta), h, r * Math.sin(theta)));
-            points.push(new THREE.Vector3(-r * Math.cos(theta), -h, -r * Math.sin(theta))); // 対向点
+            points.push(new THREE.Vector3(-r * Math.cos(theta), -h, -r * Math.sin(theta))); 
           }
         } else {
-          // 奇数の場合: 可能な限りの対称性 (極2つ + 赤道)
           const k = n - 2;
           points.push(new THREE.Vector3(0, 1, 0)); points.push(new THREE.Vector3(0, -1, 0));
           for (let i = 0; i < k; i++) {
@@ -670,7 +672,6 @@
           }
         }
 
-        // ConvexGeometryを利用して自動で面(faces)を張る
         if (points.length >= 4) {
           const convexGeo = new THREE.ConvexGeometry(points);
           const pos = convexGeo.attributes.position;
@@ -715,7 +716,7 @@
       let colorIndex = 0;
       const paired = new Set();
       
-      vertices.forEach(v => v.pairColor = ''); // 初期化
+      vertices.forEach(v => v.pairColor = ''); 
 
       for (let i = 0; i < vertices.length; i++) {
         if (paired.has(i)) continue;
@@ -724,7 +725,6 @@
         for (let j = i + 1; j < vertices.length; j++) {
           if (paired.has(j)) continue;
           const v2 = new THREE.Vector3(...vertices[j].v);
-          // 対向点 (v1 + v2 がほぼ 0ベクトル) の判定
           if (v1.clone().add(v2).length() < 0.1) {
             const color = pairColorPalette[colorIndex % pairColorPalette.length];
             vertices[i].pairColor = color;
@@ -752,13 +752,11 @@
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(5, 10, 7); scene.add(dirLight);
 
-    // 黄色いプロット (重心) 
     const pointGeo = new THREE.SphereGeometry(0.06, 32, 32);
-    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false }); // 最前面
+    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false }); 
     const dataPoint = new THREE.Mesh(pointGeo, pointMat);
     dataPoint.renderOrder = 9999;
     
-    // オーラ (視認性向上)
     const auraGeo = new THREE.SphereGeometry(0.12, 32, 32);
     const auraMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.4, depthTest: false });
     const auraPoint = new THREE.Mesh(auraGeo, auraMat);
@@ -808,7 +806,6 @@
       
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
       
-      // 対向頂点の判定と色付け
       assignPairColors(shapeData.vertices);
 
       const slidersDiv = document.getElementById('sliders-container');
@@ -831,7 +828,6 @@
             <input type="range" id="score_${vert.id}" class="score-slider" min="0" max="1" step="0.05" value="${scoreMemory[vert.id]}" oninput="saveMemAndPlot()">
           </div>`;
 
-        // ペアカラーがあれば左ボーダーとして適用
         const borderStyle = vert.pairColor ? `border-left: 6px solid ${vert.pairColor};` : '';
 
         labelsDiv.innerHTML += `
@@ -856,7 +852,6 @@
       updatePlot();
     }
 
-    // スマホ用ラベル順序入替処理
     function moveLabelUp(id) {
       if(document.body.classList.contains('viewer-mode')) return;
       const idx = shapeData.vertices.findIndex(v => v.id === id);
@@ -1018,13 +1013,11 @@
       const count = P.length || 1;
       let cx = sumX / count, cy = sumY / count, cz = sumZ / count;
 
-      // 【改修】移動幅強調モード (N倍: ベクトルの合力 ＆ 破綻防止リミッター)
       const enhanceCheck = document.getElementById('enhanceMovement');
       if (enhanceCheck && enhanceCheck.checked) {
         const factor = count; // 頂点数倍
         cx *= factor; cy *= factor; cz *= factor;
         
-        // リミッター: 外殻の目安半径 (1.2) を超えたら押しとどめる
         const dist = Math.sqrt(cx*cx + cy*cy + cz*cz);
         const maxDist = 1.2;
         if (dist > maxDist) {
@@ -1034,12 +1027,12 @@
         }
       }
 
-      dataPoint.position.set(cx, cy, cz); // 重心プロットの移動
+      dataPoint.position.set(cx, cy, cz); 
 
       while(regionGroup.children.length > 0) regionGroup.remove(regionGroup.children[0]);
       while(compareGroup.children.length > 0) compareGroup.remove(compareGroup.children[0]);
 
-      // --- 自身のポリゴン描画 ---
+      // 自身のポリゴン描画
       if (shapeData.faces && shapeData.faces.length > 0) {
         const regionGeo = new THREE.BufferGeometry();
         const posArray = new Float32Array(P.length * 3);
@@ -1047,7 +1040,7 @@
         regionGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
         const faces = []; shapeData.faces.forEach(f => faces.push(...f));
         regionGeo.setIndex(faces);
-        const regionMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+        const regionMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
         regionGroup.add(new THREE.Mesh(regionGeo, regionMat));
       }
 
@@ -1059,7 +1052,7 @@
       innerWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(innerWirePos, 3));
       regionGroup.add(new THREE.LineSegments(innerWireGeo, new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.8 })));
 
-      // --- 比較データの描画 ---
+      // 比較データの描画
       let compP = null;
       if (compareData && compareData.labels && compareData.scores) {
         compP = [];
@@ -1083,7 +1076,7 @@
           compGeo.setAttribute('position', new THREE.BufferAttribute(compPos, 3));
           const faces = []; shapeData.faces.forEach(f => faces.push(...f));
           compGeo.setIndex(faces);
-          const compMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+          const compMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
           compareGroup.add(new THREE.Mesh(compGeo, compMat));
         }
 
@@ -1096,7 +1089,7 @@
         compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.8 })));
       }
 
-      // --- ラベル描画 ---
+      // ラベル描画
       while(labelGroup.children.length > 0) {
         const c = labelGroup.children[0];
         if (c.material.map) c.material.map.dispose();
@@ -1107,7 +1100,7 @@
       const originText = labelMemory['origin'];
       if (originText !== undefined) {
         const sp = createOriginTextSprite(originText, '#00ffcc', scaleFactor);
-        sp.position.set(0, 0, 0); // 空間の中心に完全に固定
+        sp.position.set(0, 0, 0); 
         labelGroup.add(sp);
       }
       shapeData.vertices.forEach(v => {
@@ -1130,7 +1123,7 @@
       
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width / 2, cy = canvas.height / 2;
-      const scale = Math.min(cx, cy) * 0.7; // 外側にラベルの余裕を持たせるため少し縮小
+      const scale = Math.min(cx, cy) * 0.7; 
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(cx, cy, scale, 0, Math.PI * 2); ctx.stroke();
@@ -1159,58 +1152,63 @@
 
       // 外枠
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
+      ctx.beginPath();
       shapeData.edges.forEach(edge => {
         const p1 = project(shapeData.vertices[edge[0]].v);
         const p2 = project(shapeData.vertices[edge[1]].v);
-        ctx.beginPath(); ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v); ctx.stroke();
+        ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v); 
       });
+      ctx.stroke();
+
       ctx.strokeStyle = '#333';
+      ctx.beginPath();
       shapeData.vertices.forEach(v => {
         const p = project(v.v);
-        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(p.u, p.v); ctx.stroke();
+        ctx.moveTo(cx, cy); ctx.lineTo(p.u, p.v);
       });
+      ctx.stroke();
 
-      // 比較データ描画 (自身より下に描画)
+      // 比較データ描画
       if (compP) {
-        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)'; ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2;
+        ctx.fillStyle = 'rgba(255, 0, 255, 0.2)'; 
         if (shapeData.faces && shapeData.faces.length > 0) {
+          ctx.beginPath();
           shapeData.faces.forEach(face => {
-            ctx.beginPath();
             for(let i=0; i<face.length; i++) {
               const p = projectObj(compP[face[i]]);
               if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
             }
-            ctx.closePath(); ctx.fill(); ctx.stroke();
           });
-        } else {
-          ctx.beginPath();
-          shapeData.edges.forEach(edge => {
-            const p1 = projectObj(compP[edge[0]]); const p2 = projectObj(compP[edge[1]]);
-            ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v);
-          });
-          ctx.stroke();
+          ctx.fill();
         }
-      }
-
-      // 自身の描画
-      ctx.fillStyle = 'rgba(0, 255, 204, 0.3)'; ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
-      if (shapeData.faces && shapeData.faces.length > 0) {
-        shapeData.faces.forEach(face => {
-          ctx.beginPath();
-          for(let i=0; i<face.length; i++) {
-            const p = projectObj(innerP[face[i]]);
-            if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
-          }
-          ctx.closePath(); ctx.fill(); ctx.stroke();
-        });
-      } else {
+        ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 2;
         ctx.beginPath();
         shapeData.edges.forEach(edge => {
-          const p1 = projectObj(innerP[edge[0]]); const p2 = projectObj(innerP[edge[1]]);
+          const p1 = projectObj(compP[edge[0]]); const p2 = projectObj(compP[edge[1]]);
           ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v);
         });
         ctx.stroke();
       }
+
+      // 自身の描画
+      ctx.fillStyle = 'rgba(0, 255, 204, 0.3)'; 
+      if (shapeData.faces && shapeData.faces.length > 0) {
+        ctx.beginPath();
+        shapeData.faces.forEach(face => {
+          for(let i=0; i<face.length; i++) {
+            const p = projectObj(innerP[face[i]]);
+            if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
+          }
+        });
+        ctx.fill(); 
+      }
+      ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      shapeData.edges.forEach(edge => {
+        const p1 = projectObj(innerP[edge[0]]); const p2 = projectObj(innerP[edge[1]]);
+        ctx.moveTo(p1.u, p1.v); ctx.lineTo(p2.u, p2.v);
+      });
+      ctx.stroke();
 
       // ラベルテキスト (外側に押し出し)
       ctx.font = '12px sans-serif'; ctx.fillStyle = '#ccc';
@@ -1218,19 +1216,16 @@
         const p = project(v.v);
         const text = labelMemory[v.id];
         if (text) {
-          // 中心からのベクトルを計算
           const dx = p.u - cx;
           const dy = p.v - cy;
           const len = Math.sqrt(dx*dx + dy*dy);
           let lx = p.u, ly = p.v;
           
           if (len > 0.1) {
-            // 円周（または点）から12px外側へ押し出す
-            lx = p.u + (dx / len) * 12;
-            ly = p.v + (dy / len) * 12;
+            lx = p.u + (dx / len) * 14;
+            ly = p.v + (dy / len) * 14;
           }
           
-          // 角度に応じた文字の揃え
           ctx.textAlign = dx > 5 ? 'left' : (dx < -5 ? 'right' : 'center');
           ctx.textBaseline = dy > 5 ? 'top' : (dy < -5 ? 'bottom' : 'middle');
           
@@ -1238,7 +1233,7 @@
         }
       });
 
-      // 原点 (固定0,0,0)
+      // 原点
       const oProj = projectObj({x: 0, y: 0, z: 0});
       const originName = labelMemory['origin'] || '';
       const dotStr = "●";
@@ -1249,7 +1244,7 @@
         ctx.fillText(" " + originName, oProj.u + ctx.measureText(dotStr).width / 2, oProj.v + 1);
       }
       
-      // 重心 (黄色のプロット) - 最前面として最後に描画
+      // 重心 (黄色のプロット) 
       const cProj = projectObj(originPt);
       ctx.fillStyle = 'rgba(255, 255, 0, 0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
