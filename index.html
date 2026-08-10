@@ -5,65 +5,45 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>立体評価チャート・プロトタイプ v22</title>
   <style>
-    :root {
-      --bottom-panel-height: 40vh;
-    }
+    :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
     
-    /* 左サイドバー */
-    #sidebar { 
-      width: 350px; min-width: 250px; max-width: 500px; height: 100vh;
-      padding: 15px 20px calc(15px + env(safe-area-inset-bottom)) 15px; background: #2a2a2a; 
-      display: flex; flex-direction: column; gap: 10px; z-index: 10; 
-      box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
+    /* サイドバー類 */
+    #sidebar, #right-sidebar {
+      width: 350px; min-width: 250px; height: 100vh; background: #2a2a2a; 
+      display: flex; flex-direction: column; gap: 10px; z-index: 10; overflow-y: auto; position: relative;
     }
-    /* 右サイドバー */
-    #right-sidebar {
-      width: 350px; min-width: 250px; max-width: 600px; height: 100vh;
-      padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 20px; background: #2a2a2a; 
-      display: flex; flex-direction: column; gap: 10px; z-index: 10; 
-      box-shadow: -2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
-    }
+    #sidebar { padding: 15px 20px calc(15px + env(safe-area-inset-bottom)) 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); }
+    #right-sidebar { padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 20px; box-shadow: -2px 0 10px rgba(0,0,0,0.5); }
 
-    /* 左・右 リサイザー */
-    #resizer, #resizer-right {
-      width: 24px; height: 100%; position: absolute; top: 0;
-      cursor: col-resize; z-index: 100; touch-action: none;
-    }
-    #resizer { right: -12px; }
-    #resizer-right { left: -12px; }
-    #resizer::after, #resizer-right::after {
-      content: ''; position: absolute; top: 0; width: 2px; height: 100%;
-      background: rgba(255, 255, 255, 0.15); transition: background 0.15s, width 0.15s;
-    }
-    #resizer::after { left: 11px; }
-    #resizer-right::after { right: 11px; }
-    #resizer:hover::after, #resizer.resizing::after { background: #00ffcc; width: 4px; left: 10px; }
-    #resizer-right:hover::after, #resizer-right.resizing::after { background: #00ffcc; width: 4px; right: 10px; }
+    /* リサイザー */
+    #resizer, #resizer-right { width: 24px; height: 100%; position: absolute; top: 0; cursor: col-resize; z-index: 100; touch-action: none; }
+    #resizer { right: -12px; } #resizer-right { left: -12px; }
+    #resizer::after, #resizer-right::after { content: ''; position: absolute; top: 0; width: 2px; height: 100%; background: rgba(255,255,255,0.15); transition: background 0.15s, width 0.15s; }
+    #resizer::after { left: 11px; } #resizer-right::after { right: 11px; }
+    #resizer:hover::after, #resizer.resizing::after, #resizer-right:hover::after, #resizer-right.resizing::after { background: #00ffcc; width: 4px; }
+    #resizer:hover::after, #resizer.resizing::after { left: 10px; } #resizer-right:hover::after, #resizer-right.resizing::after { right: 10px; }
 
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
     body.is-resizing #drag-overlay { display: block; }
 
-    /* 中央3Dビューポート */
+    /* 3Dビューポート */
     #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
     #viewport { flex: 1; position: relative; }
 
+    /* UI要素 */
     details { background: #222; border: 1px solid #444; border-radius: 4px; padding: 8px; }
     summary { font-size: 14px; font-weight: bold; cursor: pointer; color: #ddd; user-select: none; padding: 4px 0; }
     .section-content { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
-
     .control-group { display: flex; flex-direction: column; gap: 4px; }
     .row-group { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
     label { font-size: 12px; color: #aaa; }
     
     input[type="range"] { width: 100%; height: 20px; cursor: pointer; }
     input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
-    select, input[type="text"], input[type="number"], textarea { 
-      padding: 8px; background: #333; color: #fff; border: 1px solid #555; 
-      border-radius: 4px; font-size: 14px; width: 100%; 
-    }
-    input[type="color"] { padding: 0; border: 1px solid #555; border-radius: 4px; height: 28px; width: 60px; cursor: pointer; background: #333; }
+    select, input[type="text"], input[type="number"], textarea { padding: 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 14px; width: 100%; }
+    input[type="color"] { padding: 0; border: 1px solid #555; border-radius: 4px; height: 28px; width: 40px; cursor: pointer; background: #333; }
     input[type="text"]:disabled { opacity: 0.5; color: #aaa; cursor: not-allowed; border-color: #444; }
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -71,96 +51,57 @@
     .canvas-container { position: relative; width: 100%; height: 260px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
-    .drag-item { 
-      padding: 8px; background: #333; border: 1px dashed #555; border-radius: 4px; 
-      cursor: grab; display: flex; flex-direction: column; gap: 6px; transition: background 0.2s;
-    }
-    .drag-item:active { cursor: grabbing; }
-    .drag-item.drag-over { background: #446644; border-color: #66ff66; }
+    .drag-item { padding: 8px; background: #333; border: 1px dashed #555; border-radius: 4px; cursor: grab; display: flex; flex-direction: column; gap: 6px; transition: background 0.2s; }
+    .drag-item:active { cursor: grabbing; } .drag-item.drag-over { background: #446644; border-color: #66ff66; }
+    .drag-item.hidden-item { opacity: 0.5; border-style: dotted; }
 
-    button.primary-btn {
-      background: #00ffcc; color: #000; font-weight: bold; padding: 10px; border: none;
-      border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 14px;
-    }
+    button.primary-btn { background: #00ffcc; color: #000; font-weight: bold; padding: 10px; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 14px; }
     button.primary-btn:hover { background: #00ccaa; }
-    button.secondary-btn {
-      background: #444; color: #fff; font-weight: bold; padding: 8px; border: 1px solid #666;
-      border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 12px;
-    }
+    button.secondary-btn { background: #444; color: #fff; font-weight: bold; padding: 8px; border: 1px solid #666; border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 12px; }
     button.secondary-btn:hover { background: #666; }
     .help-btn { background: #555; color: #fff; border-radius: 50%; width: 24px; height: 24px; border: none; font-weight: bold; cursor: pointer; display: inline-flex; justify-content: center; align-items: center;}
     .help-btn-small { background: #555; color: #fff; border-radius: 4px; width: 28px; height: 24px; border: none; font-weight: bold; font-size: 12px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center;}
 
-    /* 写真アルバム用モーダル */
-    #album-modal {
-      display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85); z-index: 10000; flex-direction: column; padding: 20px; overflow-y: auto;
-    }
+    /* モーダル群 */
+    .overlay-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    .modal-box { background: #222; border: 1px solid #555; border-radius: 8px; padding: 20px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; }
     .album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-top: 15px; }
     .photo-card { position: relative; width: 100%; aspect-ratio: 1; background: #333; border-radius: 6px; overflow: hidden; border: 1px solid #555; }
     .photo-card img { width: 100%; height: 100%; object-fit: cover; }
-    .photo-del-btn {
-      position: absolute; top: 4px; right: 4px; background: rgba(255,0,0,0.8); color: #fff;
-      border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold;
-    }
+    .photo-del-btn { position: absolute; top: 4px; right: 4px; background: rgba(255,0,0,0.8); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
 
-    /* === スマホ用メニューバー＆機能 === */
-    #mobile-nav { 
-      display: none; background: #111; padding: 6px 4px; border-bottom: 1px solid #444; 
-      width: 100%; flex-direction: row; justify-content: space-between; gap: 4px; 
-      position: sticky; top: 0; z-index: 1000; /* 常時表示用 */
-    }
-    .nav-btn { 
-      background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; 
-      padding: 6px 2px; font-size: 11px; cursor: pointer; flex: 1; 
-      display: flex; flex-direction: column; align-items: center; justify-content: center; 
-      gap: 3px; line-height: 1.1; text-align: center;
-    }
+    /* モバイル用メニューバー (常時表示) */
+    #mobile-nav { display: none; background: #111; padding: 6px 4px; border-bottom: 1px solid #444; width: 100%; flex-direction: row; justify-content: space-between; gap: 4px; position: sticky; top: 0; z-index: 1000; }
+    .nav-btn { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 6px 2px; font-size: 11px; cursor: pointer; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1.1; text-align: center; }
     .nav-btn .icon { font-size: 16px; }
     .nav-btn.active { background: #00ffcc; color: #000; font-weight: bold; }
-    
     #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
     #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
+    .canvas-container.mobile-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100% !important; height: 100% !important; z-index: 90; }
 
-    /* === モバイル・タブレット表示用のレイアウト再構築 === */
     @media (max-width: 900px) {
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
-      
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
       #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      
-      #sidebar, #right-sidebar { 
-        order: 4; width: 100% !important; max-width: none; 
-        height: var(--bottom-panel-height) !important; 
-        border: none; border-top: 1px solid #444; 
-        padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 15px; 
-      }
-      
+      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 15px; }
       .mobile-section { display: none !important; }
-      body.tab-config #right-sidebar { display: none !important; }
-      body.tab-score #right-sidebar { display: none !important; }
-      body.tab-label #right-sidebar { display: none !important; }
-      body.tab-2d #sidebar { display: none !important; }
-      body.tab-memo #sidebar { display: none !important; }
-      
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
-      body.tab-score #det-score { display: block !important; }
       body.tab-label #det-label { display: block !important; }
+      body.tab-score #det-score { display: block !important; }
       body.tab-2d #det-2d { display: block !important; }
       body.tab-memo #det-memo { display: block !important; }
-
       #mobile-flat-toggle { display: block !important; }
+      body.tab-config #right-sidebar, body.tab-score #right-sidebar, body.tab-label #right-sidebar { display: none !important; }
+      body.tab-2d #sidebar, body.tab-memo #sidebar { display: none !important; }
     }
 
-    /* === Viewerモード (閲覧専用HTML用) === */
     body.viewer-mode .edit-only { display: none !important; }
     body.viewer-mode input.score-slider { pointer-events: none; opacity: 0.8; }
     body.viewer-mode .drag-item { cursor: default; border: 1px solid #555; }
   </style>
 
-  <!-- Three.js 本体と、動的凸包(ConvexHull)生成に必要なモジュール -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/ConvexHull.js"></script>
@@ -185,7 +126,17 @@
 <body class="tab-config">
   <div id="drag-overlay"></div>
 
-  <!-- スマホ用メニューバー -->
+  <!-- 汎用メッセージモーダル -->
+  <div id="alert-modal" class="overlay-modal">
+    <div class="modal-box">
+      <h3 id="alert-title" style="color:#ff5555; margin-bottom:15px;">警告</h3>
+      <div id="alert-body" style="font-size:14px; margin-bottom:20px; line-height:1.5;"></div>
+      <div style="text-align:right;">
+        <button class="secondary-btn" onclick="document.getElementById('alert-modal').style.display='none'">閉じる</button>
+      </div>
+    </div>
+  </div>
+
   <div id="mobile-nav">
     <button class="nav-btn active" onclick="setMobileTab('config')"><span class="icon">⚙️</span><span>設定/比較</span></button>
     <button class="nav-btn" onclick="setMobileTab('label')"><span class="icon">🏷️</span><span>ラベル</span></button>
@@ -194,18 +145,14 @@
     <button class="nav-btn" onclick="setMobileTab('memo')"><span class="icon">📝</span><span>写真/メモ</span></button>
   </div>
 
-  <!-- 左サイドバー: 基本設定・スコア・ラベル -->
   <div id="sidebar">
     <div id="resizer"></div>
-
-    <!-- 設定・比較セクション -->
     <div id="det-config" class="mobile-section">
       <div class="row-group">
         <h3>評価プロトタイプ v22</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
-          <button class="help-btn edit-only" onclick="showQRInfo()" title="共有・QRコードについて">?</button>
         </div>
       </div>
       
@@ -232,14 +179,13 @@
       </div>
 
       <details open id="det-compare-box">
-        <summary>データ比較機能 (他ファイルの重ね合わせ)</summary>
+        <summary>データ比較機能 (最大4つ)</summary>
         <div class="section-content">
-          <div class="row-group">
+          <div class="row-group edit-only">
             <button class="secondary-btn" onclick="document.getElementById('compareInput').click()">📁 比較用HTML読込</button>
             <input type="file" id="compareInput" accept=".html" style="display:none;" onchange="handleCompareFile(event)">
-            <button class="secondary-btn" onclick="clearCompare()" id="clearCompareBtn" style="display:none; background:#aa3333;">❌ クリア</button>
           </div>
-          <div id="compare-info" style="font-size:12px; color:#ff00ff; font-weight:bold;"></div>
+          <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
         </div>
       </details>
 
@@ -257,7 +203,7 @@
           <div class="row-group" style="justify-content: flex-start; gap: 5px;">
             <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
             <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
-            <button class="help-btn-small" style="border-radius:50%; width:18px; height:18px;" onclick="showEnhanceInfo()">?</button>
+            <button class="help-btn-small" style="border-radius:50%; width:18px; height:18px;" onclick="alert('【移動幅強調モード】\n入力スコアに対し「× 頂点数 (N倍)」の補正をかけます。1つの頂点だけが最大(1)で他が0の場合、プロットがちょうどその頂点の位置に到達します。')">?</button>
           </div>
           <div class="control-group">
             <label>3Dラベルのサイズ</label>
@@ -271,32 +217,23 @@
                 <label>メインカラー</label>
                 <input type="color" id="mainColor" value="#00ffcc" oninput="updatePlot()">
               </div>
-              <div class="row-group">
-                <label>比較カラー</label>
-                <input type="color" id="compColor" value="#ff00ff" oninput="updatePlot()">
-              </div>
-              <div class="control-group">
-                <label>面の透明度</label>
-                <input type="range" id="faceOpacity" min="0" max="1" step="0.05" value="0.4" oninput="updatePlot()">
-              </div>
-              <div class="control-group">
-                <label>線の濃さ（透明度）</label>
-                <input type="range" id="lineOpacity" min="0" max="1" step="0.05" value="0.9" oninput="updatePlot()">
-              </div>
+              <div class="row-group"><label>比較色1</label><input type="color" id="compColor1" value="#ff00ff" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色2</label><input type="color" id="compColor2" value="#00aaff" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色3</label><input type="color" id="compColor3" value="#ffaa00" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色4</label><input type="color" id="compColor4" value="#ff0055" oninput="updatePlot()"></div>
+              <div class="control-group"><label>面の透明度</label><input type="range" id="faceOpacity" min="0" max="1" step="0.05" value="0.4" oninput="updatePlot()"></div>
+              <div class="control-group"><label>線の濃さ(透明度)</label><input type="range" id="lineOpacity" min="0" max="1" step="0.05" value="0.9" oninput="updatePlot()"></div>
             </div>
           </details>
-
         </div>
       </details>
     </div>
 
-    <!-- ラベル設定 -->
     <details open id="det-label" class="mobile-section">
-      <summary>1. 頂点ラベル設定 (入替可能)</summary>
+      <summary>1. 頂点ラベル設定 (表示/非表示・入替可)</summary>
       <div class="section-content" id="labels-container"></div>
     </details>
 
-    <!-- スコア設定 -->
     <details open id="det-score" class="mobile-section">
       <summary>2. 評価スコア入力</summary>
       <div class="section-content">
@@ -307,30 +244,24 @@
         <div id="sliders-container" class="section-content"></div>
       </div>
     </details>
-
   </div>
 
-  <!-- スマホ用リサイザー -->
   <div id="mobile-resizer"></div>
 
-  <!-- 中央: 3Dビューポート -->
   <div id="viewport-container">
     <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 平面(2D)化</button>
     <div id="viewport"></div>
   </div>
 
-  <!-- 右サイドバー: ノート・写真・2D投影 -->
   <div id="right-sidebar">
     <div id="resizer-right"></div>
-
     <details open id="det-memo" class="mobile-section">
       <summary>ノート & 写真</summary>
       <div class="section-content">
         <div class="row-group edit-only">
-          <button class="secondary-btn" onclick="toggleMemo()">ノート表示/非表示</button>
+          <button class="secondary-btn" onclick="toggleMemo()">ノート表示切替</button>
           <button class="secondary-btn" onclick="document.getElementById('photoInput').click()">📷 写真追加</button>
           <button class="secondary-btn" onclick="openAlbum()">🖼️ アルバム (<span id="photoCount">0</span>/4)</button>
-          <!-- capture="environment" を削除し、アルバムも選べるように修正 -->
           <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="handlePhotoAdd(event)">
         </div>
         <div class="row-group" id="viewer-album-btn" style="display:none;">
@@ -346,10 +277,10 @@
       <summary>3. 2D 投影マップ</summary>
       <div class="section-content" id="2d-section-content">
         <div class="control-group">
-          <label>投影平面 (指定した頂点から見下ろす)</label>
+          <label>投影平面 (指定頂点から見下ろす)</label>
           <select id="planeSelect" onchange="updatePlot()"></select>
         </div>
-        <button class="secondary-btn edit-only" onclick="exportAll2DMaps()">全パターンの投影マップをJPG保存</button>
+        <button class="secondary-btn edit-only" onclick="exportAll2DMaps()">全パターンをJPG保存</button>
         <div class="canvas-container" id="main-canvas-container">
           <canvas id="projection-canvas"></canvas>
         </div>
@@ -358,439 +289,178 @@
   </div>
 
   <!-- 写真アルバム モーダル -->
-  <div id="album-modal">
-    <div class="row-group">
-      <h3>写真アルバム (最大4枚)</h3>
-      <button class="secondary-btn" onclick="closeAlbum()">閉じる</button>
+  <div id="album-modal" class="overlay-modal" style="display:none; flex-direction:column; padding:20px;">
+    <div style="background:#222; border:1px solid #555; border-radius:8px; padding:20px; width:100%; max-width:800px;">
+      <div class="row-group"><h3>写真アルバム (最大4枚)</h3><button class="secondary-btn" onclick="closeAlbum()">閉じる</button></div>
+      <div id="album-grid" class="album-grid"></div>
     </div>
-    <div id="album-grid" class="album-grid"></div>
   </div>
 
   <script>
-    // --- ユーティリティ: HEXからRGBA変換 ---
     function hexToRgba(hex, alpha) {
       hex = hex.replace(/^#/, '');
       if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
+      const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
-    // --- UIリサイズ制御 (左サイドバー用・PC) ---
-    const sidebar = document.getElementById('sidebar');
-    const resizer = document.getElementById('resizer');
-    let isResizingLeft = false;
-    let resizeAnimationFrame = null;
+    function showModal(title, bodyHtml) {
+      document.getElementById('alert-title').innerText = title;
+      document.getElementById('alert-body').innerHTML = bodyHtml;
+      document.getElementById('alert-modal').style.display = 'flex';
+    }
 
-    resizer.addEventListener('pointerdown', (e) => {
-      isResizingLeft = true; resizer.setPointerCapture(e.pointerId);
-      resizer.classList.add('resizing'); document.body.classList.add('is-resizing');
-    });
-    resizer.addEventListener('pointermove', (e) => {
-      if (!isResizingLeft) return;
-      if (window.innerWidth <= 900) return;
-      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
-      resizeAnimationFrame = requestAnimationFrame(() => {
-        const newWidth = e.clientX;
-        if (newWidth >= 250 && newWidth <= 600) sidebar.style.width = `${newWidth}px`;
-        onWindowResize();
-      });
-    });
-
-    // --- UIリサイズ制御 (右サイドバー用・PC) ---
-    const rightSidebar = document.getElementById('right-sidebar');
-    const resizerRight = document.getElementById('resizer-right');
-    let isResizingRight = false;
-
-    resizerRight.addEventListener('pointerdown', (e) => {
-      isResizingRight = true; resizerRight.setPointerCapture(e.pointerId);
-      resizerRight.classList.add('resizing'); document.body.classList.add('is-resizing');
-    });
-    resizerRight.addEventListener('pointermove', (e) => {
-      if (!isResizingRight) return;
-      if (window.innerWidth <= 900) return;
-      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
-      resizeAnimationFrame = requestAnimationFrame(() => {
-        const newWidth = window.innerWidth - e.clientX;
-        if (newWidth >= 250 && newWidth <= 600) rightSidebar.style.width = `${newWidth}px`;
-        onWindowResize();
-      });
-    });
-
-    // --- モバイル縦リサイザー制御 ---
+    // --- リサイズ・UI系制御 ---
+    const sidebar = document.getElementById('sidebar'), resizer = document.getElementById('resizer');
+    const rightSidebar = document.getElementById('right-sidebar'), resizerRight = document.getElementById('resizer-right');
     const mobileResizer = document.getElementById('mobile-resizer');
-    let isResizingMobile = false;
-    mobileResizer.addEventListener('pointerdown', (e) => {
-      isResizingMobile = true; mobileResizer.setPointerCapture(e.pointerId);
-      document.body.classList.add('is-resizing');
-    });
-    mobileResizer.addEventListener('pointermove', (e) => {
-      if (!isResizingMobile) return;
-      if (window.innerWidth > 900) return;
-      if (resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame);
-      resizeAnimationFrame = requestAnimationFrame(() => {
-        const newHeight = window.innerHeight - e.clientY;
-        if (newHeight >= 150 && newHeight <= window.innerHeight - 150) {
-          document.documentElement.style.setProperty('--bottom-panel-height', `${newHeight}px`);
-          onWindowResize();
-        }
-      });
-    });
+    let isResizingLeft = false, isResizingRight = false, isResizingMobile = false, resizeAnimationFrame = null;
 
-    const stopResize = (e) => {
-      if (isResizingLeft) { isResizingLeft = false; try { resizer.releasePointerCapture(e.pointerId); } catch(err){} resizer.classList.remove('resizing'); }
-      if (isResizingRight) { isResizingRight = false; try { resizerRight.releasePointerCapture(e.pointerId); } catch(err){} resizerRight.classList.remove('resizing'); }
-      if (isResizingMobile) { isResizingMobile = false; try { mobileResizer.releasePointerCapture(e.pointerId); } catch(err){} }
+    resizer.addEventListener('pointerdown', (e) => { isResizingLeft = true; resizer.setPointerCapture(e.pointerId); resizer.classList.add('resizing'); document.body.classList.add('is-resizing'); });
+    resizer.addEventListener('pointermove', (e) => { if(!isResizingLeft||window.innerWidth<=900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nw = e.clientX; if(nw>=250 && nw<=600) sidebar.style.width=`${nw}px`; onWindowResize(); }); });
+    resizerRight.addEventListener('pointerdown', (e) => { isResizingRight = true; resizerRight.setPointerCapture(e.pointerId); resizerRight.classList.add('resizing'); document.body.classList.add('is-resizing'); });
+    resizerRight.addEventListener('pointermove', (e) => { if(!isResizingRight||window.innerWidth<=900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nw = window.innerWidth - e.clientX; if(nw>=250 && nw<=600) rightSidebar.style.width=`${nw}px`; onWindowResize(); }); });
+    mobileResizer.addEventListener('pointerdown', (e) => { isResizingMobile = true; mobileResizer.setPointerCapture(e.pointerId); document.body.classList.add('is-resizing'); });
+    mobileResizer.addEventListener('pointermove', (e) => { if(!isResizingMobile||window.innerWidth>900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nh = window.innerHeight - e.clientY; if(nh>=150 && nh<=window.innerHeight-150) { document.documentElement.style.setProperty('--bottom-panel-height', `${nh}px`); onWindowResize(); }});});
+    const stopResize = (e) => { 
+      if(isResizingLeft) { isResizingLeft=false; try{resizer.releasePointerCapture(e.pointerId);}catch(e){} resizer.classList.remove('resizing'); }
+      if(isResizingRight) { isResizingRight=false; try{resizerRight.releasePointerCapture(e.pointerId);}catch(e){} resizerRight.classList.remove('resizing'); }
+      if(isResizingMobile) { isResizingMobile=false; try{mobileResizer.releasePointerCapture(e.pointerId);}catch(e){} }
       document.body.classList.remove('is-resizing');
     };
-    
-    window.addEventListener('pointerup', stopResize);
-    window.addEventListener('pointercancel', stopResize);
+    window.addEventListener('pointerup', stopResize); window.addEventListener('pointercancel', stopResize);
 
-    // --- モバイル タブ制御 ---
     function setMobileTab(tabName) {
       document.body.className = document.body.className.replace(/tab-\w+/g, '');
       if (document.body.classList.contains('viewer-mode')) document.body.classList.add('viewer-mode'); 
       document.body.classList.add('tab-' + tabName);
-      
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
       const activeBtn = document.querySelector(`.nav-btn[onclick="setMobileTab('${tabName}')"]`);
       if (activeBtn) activeBtn.classList.add('active');
-      
       setTimeout(onWindowResize, 50); 
     }
 
-    // --- モバイル 平面(2D)化トグル ---
     function toggleFlatModeMobile() {
       const flatEl = document.getElementById('flatPolygonToggle');
-      if (flatEl) {
-        flatEl.checked = !flatEl.checked;
-        initShapeUI();
-      }
+      if (flatEl) { flatEl.checked = !flatEl.checked; initShapeUI(); }
     }
-    
     function updateMobileFlatButton() {
-      const btn = document.getElementById('mobile-flat-toggle');
-      const flatEl = document.getElementById('flatPolygonToggle');
+      const btn = document.getElementById('mobile-flat-toggle'), flatEl = document.getElementById('flatPolygonToggle');
       if (btn && flatEl) {
-        if (flatEl.checked) {
-          btn.innerHTML = "<span style='font-size:16px;'>🌐</span> 立体(3D)化";
-          btn.style.background = "#ffaa00";
-          btn.style.color = "#000";
-        } else {
-          btn.innerHTML = "<span style='font-size:16px;'>🗺️</span> 平面(2D)化";
-          btn.style.background = "";
-          btn.style.color = "";
-        }
+        if (flatEl.checked) { btn.innerHTML = "<span style='font-size:16px;'>🌐</span> 立体(3D)化"; btn.style.background = "#ffaa00"; btn.style.color = "#000"; } 
+        else { btn.innerHTML = "<span style='font-size:16px;'>🗺️</span> 平面(2D)化"; btn.style.background = ""; btn.style.color = ""; }
       }
     }
 
-    // --- ヘルプダイアログ ---
-    function showQRInfo() {
-      alert("【共有・QRコードについて】\n\nQRコード自体にはデータ容量の制限があるため、HTMLファイルを直接QRコードに埋め込むことは不可能です。\n\n◆ 解決策（サーバー不要の共有）\n1. 「閲覧用保存」ボタンで軽量な専用HTMLをダウンロードします。\n2. そのファイルをLINE、メール、AirDropなどでスマホや他者に共有します。\n3. 受け取った側はブラウザでファイルを開くだけで、専用アプリやサーバーなしで3D閲覧と比較機能が利用可能です。");
-    }
-
-    function showEnhanceInfo() {
-      alert("【移動幅強調モードについて】\n\n各頂点のスコアを「各方向への引っ張る力（ベクトル）」と見なし、その単純な合成（合力）を求める数学的処理に基づいています。\n\nこのモードをONにすると、入力されたスコアベクトルに対して【 × 頂点数 (N倍) 】の補正がかかります。これにより、1つの頂点だけが最大(1)で他がすべて0の場合に、プロットが【ちょうどその頂点の位置に到達】するようになります。");
-    }
-
-    // --- メモ & 写真 管理機能 ---
+    // --- メモ & 写真 ---
     let photosList = [];
-
-    function toggleMemo() {
-      const area = document.getElementById('memo-area');
-      area.style.display = area.style.display === 'none' ? 'block' : 'none';
-    }
-
-    function saveMemoToStorage() {
-      const text = document.getElementById('memoInput').value;
-      localStorage.setItem('eval_chart_memo', text);
-    }
-
-    function savePhotosToStorage() {
-      try {
-        localStorage.setItem('eval_chart_photos', JSON.stringify(photosList));
-      } catch(e) {
-        console.warn('Storage quota exceeded for photos.');
-      }
-    }
-
+    function toggleMemo() { const a = document.getElementById('memo-area'); a.style.display = a.style.display==='none'?'block':'none'; }
+    function saveMemoToStorage() { localStorage.setItem('eval_chart_memo', document.getElementById('memoInput').value); }
+    function savePhotosToStorage() { try { localStorage.setItem('eval_chart_photos', JSON.stringify(photosList)); } catch(e){} }
     function handlePhotoAdd(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (photosList.length >= 4) { alert('写真は最大4枚まで追加可能です。'); e.target.value = ''; return; }
-
+      const file = e.target.files[0]; if (!file) return;
+      if (photosList.length >= 4) { alert('写真最大4枚まで。'); e.target.value=''; return; }
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = (ev) => {
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width, height = img.height;
-          const maxDim = 800;
-          if (width > height && width > maxDim) { height = Math.round((height * maxDim) / width); width = maxDim; } 
-          else if (height > maxDim) { width = Math.round((width * maxDim) / height); height = maxDim; }
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
-          photosList.push(compressedBase64);
+          const cvs = document.createElement('canvas'); let w = img.width, h = img.height, max = 800;
+          if (w>h && w>max) { h=Math.round(h*max/w); w=max; } else if (h>max) { w=Math.round(w*max/h); h=max; }
+          cvs.width=w; cvs.height=h; const ctx=cvs.getContext('2d'); ctx.drawImage(img,0,0,w,h);
+          photosList.push(cvs.toDataURL('image/jpeg', 0.75));
           document.getElementById('photoCount').innerText = photosList.length;
-          savePhotosToStorage();
-          renderAlbum();
-          e.target.value = '';
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
+          savePhotosToStorage(); renderAlbum(); e.target.value='';
+        }; img.src = ev.target.result;
+      }; reader.readAsDataURL(file);
     }
-
-    function openAlbum() {
-      renderAlbum();
-      document.getElementById('album-modal').style.display = 'flex';
-    }
-    function closeAlbum() { document.getElementById('album-modal').style.display = 'none'; }
-
-    function deletePhoto(index) {
-      if(document.body.classList.contains('viewer-mode')) return;
-      photosList.splice(index, 1);
-      document.getElementById('photoCount').innerText = photosList.length;
-      savePhotosToStorage(); renderAlbum();
-    }
-
+    function openAlbum() { renderAlbum(); document.getElementById('album-modal').style.display='flex'; }
+    function closeAlbum() { document.getElementById('album-modal').style.display='none'; }
+    function deletePhoto(idx) { if(document.body.classList.contains('viewer-mode'))return; photosList.splice(idx,1); document.getElementById('photoCount').innerText=photosList.length; savePhotosToStorage(); renderAlbum(); }
     function renderAlbum() {
-      const grid = document.getElementById('album-grid');
-      grid.innerHTML = '';
-      if (photosList.length === 0) { grid.innerHTML = '<p style="color:#888; grid-column: 1/-1;">写真はありません</p>'; return; }
+      const grid = document.getElementById('album-grid'); grid.innerHTML = '';
+      if(photosList.length===0){ grid.innerHTML='<p style="color:#888;">写真はありません</p>'; return; }
       const isViewer = document.body.classList.contains('viewer-mode');
       photosList.forEach((src, idx) => {
-        const card = document.createElement('div');
-        card.className = 'photo-card';
-        card.innerHTML = `<img src="${src}" alt="photo_${idx}">` + (isViewer ? '' : `<button class="photo-del-btn" onclick="deletePhoto(${idx})">×</button>`);
-        grid.appendChild(card);
+        const c = document.createElement('div'); c.className='photo-card';
+        c.innerHTML = `<img src="${src}">` + (isViewer?'':`<button class="photo-del-btn" onclick="deletePhoto(${idx})">×</button>`);
+        grid.appendChild(c);
       });
     }
 
-    // --- 図形定義と自由設計計算 ---
-    const R = 2 * Math.sqrt(2) / 3;
-    const Y_base = -1 / 3;
+    // --- 図形定義 ---
+    const R = 2*Math.sqrt(2)/3, Y_base = -1/3;
     let SHAPES = {
-      tetrahedron: {
-        vertices: [
-          { id: 'v0', name: '頂点 A (頂上)', defaultLabel: '要素 1', v: [0, 1, 0] },
-          { id: 'v1', name: '頂点 B (底面奥)', defaultLabel: '要素 2', v: [0, Y_base, R] },
-          { id: 'v2', name: '頂点 C (底面右)', defaultLabel: '要素 3', v: [R * Math.cos(-Math.PI/6), Y_base, R * Math.sin(-Math.PI/6)] },
-          { id: 'v3', name: '頂点 D (底面左)', defaultLabel: '要素 4', v: [R * Math.cos(7*Math.PI/6), Y_base, R * Math.sin(7*Math.PI/6)] }
-        ],
-        faces: [[0,1,2], [0,2,3], [0,3,1], [1,3,2]]
-      },
-      bipyramid: {
-        vertices: [
-          { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
-          { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
-          { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] },
-          { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] },
-          { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] }
-        ],
-        faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]]
-      },
-      octahedron: {
-        vertices: [
-          { id: 'v0', name: '頂点 Top (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
-          { id: 'v1', name: '頂点 Bottom (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
-          { id: 'v2', name: '頂点 Right (+X)', defaultLabel: '要素 3', v: [1, 0, 0] },
-          { id: 'v3', name: '頂点 Left (-X)', defaultLabel: '要素 4', v: [-1, 0, 0] },
-          { id: 'v4', name: '頂点 Front (+Z)', defaultLabel: '要素 5', v: [0, 0, 1] },
-          { id: 'v5', name: '頂点 Back (-Z)', defaultLabel: '要素 6', v: [0, 0, -1] }
-        ],
-        faces: [[0,2,4], [0,4,3], [0,3,5], [0,5,2], [1,4,2], [1,3,4], [1,5,3], [1,2,5]]
-      },
-      hexahedron: {
-        vertices: [
-          { id: 'v0', name: '頂上・右前', defaultLabel: '要素 1', v: [1, 1, 1] },
-          { id: 'v1', name: '頂上・左前', defaultLabel: '要素 2', v: [-1, 1, 1] },
-          { id: 'v2', name: '頂上・左奥', defaultLabel: '要素 3', v: [-1, 1, -1] },
-          { id: 'v3', name: '頂上・右奥', defaultLabel: '要素 4', v: [1, 1, -1] },
-          { id: 'v4', name: '底面・右前', defaultLabel: '要素 5', v: [1, -1, 1] },
-          { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] },
-          { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] },
-          { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] }
-        ].map(pt => { pt.v = pt.v.map(val => val / Math.sqrt(3)); return pt; }), 
-        faces: [
-          [0,1,2], [0,2,3], 
-          [4,6,5], [4,7,6],  
-          [0,5,1], [0,4,5], 
-          [1,6,2], [1,5,6], 
-          [2,7,3], [2,6,7], 
-          [3,4,0], [3,7,4]  
-        ]
-      }
+      tetrahedron: { vertices: [ { id: 'v0', name: '頂点 A (頂上)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '頂点 B (底面奥)', defaultLabel: '要素 2', v: [0, Y_base, R] }, { id: 'v2', name: '頂点 C (底面右)', defaultLabel: '要素 3', v: [R*Math.cos(-Math.PI/6), Y_base, R*Math.sin(-Math.PI/6)] }, { id: 'v3', name: '頂点 D (底面左)', defaultLabel: '要素 4', v: [R*Math.cos(7*Math.PI/6), Y_base, R*Math.sin(7*Math.PI/6)] } ], faces: [[0,1,2], [0,2,3], [0,3,1], [1,3,2]] },
+      bipyramid: { vertices: [ { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] }, { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] }, { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] }, { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] } ], faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]] },
+      octahedron: { vertices: [ { id: 'v0', name: '頂点 Top (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '頂点 Bottom (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] }, { id: 'v2', name: '頂点 Right (+X)', defaultLabel: '要素 3', v: [1, 0, 0] }, { id: 'v3', name: '頂点 Left (-X)', defaultLabel: '要素 4', v: [-1, 0, 0] }, { id: 'v4', name: '頂点 Front (+Z)', defaultLabel: '要素 5', v: [0, 0, 1] }, { id: 'v5', name: '頂点 Back (-Z)', defaultLabel: '要素 6', v: [0, 0, -1] } ], faces: [[0,2,4], [0,4,3], [0,3,5], [0,5,2], [1,4,2], [1,3,4], [1,5,3], [1,2,5]] },
+      hexahedron: { vertices: [ { id: 'v0', name: '頂上・右前', defaultLabel: '要素 1', v: [1, 1, 1] }, { id: 'v1', name: '頂上・左前', defaultLabel: '要素 2', v: [-1, 1, 1] }, { id: 'v2', name: '頂上・左奥', defaultLabel: '要素 3', v: [-1, 1, -1] }, { id: 'v3', name: '頂上・右奥', defaultLabel: '要素 4', v: [1, 1, -1] }, { id: 'v4', name: '底面・右前', defaultLabel: '要素 5', v: [1, -1, 1] }, { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] }, { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] }, { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] } ].map(pt => { pt.v = pt.v.map(val => val/Math.sqrt(3)); return pt; }), faces: [[0,1,2], [0,2,3], [4,6,5], [4,7,6], [0,5,1], [0,4,5], [1,6,2], [1,5,6], [2,7,3], [2,6,7], [3,4,0], [3,7,4]] }
     };
-
-    function getEdges(faces) {
-      const edges = [];
-      const edgeSet = new Set();
-      faces.forEach(face => {
-        for (let i = 0; i < face.length; i++) {
-          const a = face[i], b = face[(i + 1) % face.length];
-          const key = Math.min(a, b) + '_' + Math.max(a, b);
-          if (!edgeSet.has(key)) { edgeSet.add(key); edges.push([a, b]); }
-        }
-      });
-      return edges;
-    }
+    function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
     function generateCustomShape(n, is2DFlat = false) {
-      let points = [];
-      let faces = [];
-      let explicitEdges = null;
-
+      let points = [], faces = [], explicitEdges = null;
       if (is2DFlat || n < 4) {
         explicitEdges = [];
-        for (let i = 0; i < n; i++) {
-          const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-          points.push(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)));
-          if (n > 2) explicitEdges.push([i, (i + 1) % n]);
-        }
-        if (n === 2) { explicitEdges = [[0, 1]]; } 
-        else { 
-          for (let i = 1; i < n - 1; i++) { faces.push([0, i, i + 1]); } 
-        }
+        for (let i = 0; i < n; i++) { points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/n - Math.PI/2), 0, Math.sin((2*Math.PI*i)/n - Math.PI/2))); if (n > 2) explicitEdges.push([i, (i+1)%n]); }
+        if (n === 2) explicitEdges = [[0, 1]]; else for (let i = 1; i < n - 1; i++) faces.push([0, i, i+1]);
       } else {
-        if (n === 4) {
-          const R = 2 * Math.sqrt(2) / 3; const Y_base = -1 / 3;
-          points = [ new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, Y_base, R), new THREE.Vector3(R * Math.cos(-Math.PI/6), Y_base, R * Math.sin(-Math.PI/6)), new THREE.Vector3(R * Math.cos(7*Math.PI/6), Y_base, R * Math.sin(7*Math.PI/6)) ];
-        } else if (n === 6) {
-          points = [ new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1) ];
-        } else if (n === 8) {
-          const c = 1 / Math.sqrt(3);
-          points = [
-            new THREE.Vector3(-c, -c, -c), new THREE.Vector3(c, -c, -c), new THREE.Vector3(c, c, -c),  new THREE.Vector3(-c, c, -c),
-            new THREE.Vector3(-c, -c, c), new THREE.Vector3(c, -c, c), new THREE.Vector3(c, c, c),   new THREE.Vector3(-c, c, c)
-          ];
-        } else if (n === 12) {
-          const t = (1.0 + Math.sqrt(5.0)) / 2.0; const len = Math.sqrt(1 + t*t); const r1 = 1 / len, r2 = t / len;
-          points = [
-            new THREE.Vector3(-r1,  r2, 0), new THREE.Vector3( r1,  r2, 0), new THREE.Vector3(-r1, -r2, 0), new THREE.Vector3( r1, -r2, 0),
-            new THREE.Vector3(0, -r1,  r2), new THREE.Vector3(0,  r1,  r2), new THREE.Vector3(0, -r1, -r2), new THREE.Vector3(0,  r1, -r2),
-            new THREE.Vector3( r2, 0, -r1), new THREE.Vector3( r2, 0,  r1), new THREE.Vector3(-r2, 0, -r1), new THREE.Vector3(-r2, 0,  r1)
-          ];
-        } else if (n === 20) {
-          const phi = (1 + Math.sqrt(5)) / 2; const r = Math.sqrt(3);
-          const rawPoints = [ [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], [0, -1/phi, -phi], [0, 1/phi, -phi], [0, -1/phi, phi], [0, 1/phi, phi], [-1/phi, -phi, 0], [1/phi, -phi, 0], [-1/phi, phi, 0], [1/phi, phi, 0], [-phi, 0, -1/phi], [phi, 0, -1/phi], [-phi, 0, 1/phi], [phi, 0, 1/phi] ];
-          points = rawPoints.map(p => new THREE.Vector3(p[0]/r, p[1]/r, p[2]/r));
-        } else if (n % 2 === 0) {
-          const k = n / 2; const h = 0.55; const r = Math.sqrt(1 - h * h);
-          for (let i = 0; i < k; i++) {
-            const theta = (2 * Math.PI * i) / k;
-            points.push(new THREE.Vector3(r * Math.cos(theta), h, r * Math.sin(theta)));
-            points.push(new THREE.Vector3(-r * Math.cos(theta), -h, -r * Math.sin(theta))); 
-          }
-        } else {
-          const k = n - 2;
-          points.push(new THREE.Vector3(0, 1, 0)); points.push(new THREE.Vector3(0, -1, 0));
-          for (let i = 0; i < k; i++) {
-            const theta = (2 * Math.PI * i) / k;
-            points.push(new THREE.Vector3(Math.cos(theta), 0, Math.sin(theta)));
-          }
-        }
-
+        if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
+        else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
+        else if (n === 8) { const c=1/Math.sqrt(3); points = [ new THREE.Vector3(-c,-c,-c), new THREE.Vector3(c,-c,-c), new THREE.Vector3(c,c,-c), new THREE.Vector3(-c,c,-c), new THREE.Vector3(-c,-c,c), new THREE.Vector3(c,-c,c), new THREE.Vector3(c,c,c), new THREE.Vector3(-c,c,c) ]; }
+        else if (n === 12) { const t=(1+Math.sqrt(5))/2, len=Math.sqrt(1+t*t), r1=1/len, r2=t/len; points = [ new THREE.Vector3(-r1,r2,0), new THREE.Vector3(r1,r2,0), new THREE.Vector3(-r1,-r2,0), new THREE.Vector3(r1,-r2,0), new THREE.Vector3(0,-r1,r2), new THREE.Vector3(0,r1,r2), new THREE.Vector3(0,-r1,-r2), new THREE.Vector3(0,r1,-r2), new THREE.Vector3(r2,0,-r1), new THREE.Vector3(r2,0,r1), new THREE.Vector3(-r2,0,-r1), new THREE.Vector3(-r2,0,r1) ]; }
+        else if (n === 20) { const p=(1+Math.sqrt(5))/2, r=Math.sqrt(3); [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[0,-1/p,-p],[0,1/p,-p],[0,-1/p,p],[0,1/p,p],[-1/p,-p,0],[1/p,-p,0],[-1/p,p,0],[1/p,p,0],[-p,0,-1/p],[p,0,-1/p],[-p,0,1/p],[p,0,1/p]].forEach(pt=>points.push(new THREE.Vector3(pt[0]/r,pt[1]/r,pt[2]/r))); }
+        else if (n % 2 === 0) { const k=n/2, h=0.55, r=Math.sqrt(1-h*h); for(let i=0;i<k;i++){ const t=(2*Math.PI*i)/k; points.push(new THREE.Vector3(r*Math.cos(t),h,r*Math.sin(t))); points.push(new THREE.Vector3(-r*Math.cos(t),-h,-r*Math.sin(t))); } }
+        else { const k=n-2; points.push(new THREE.Vector3(0,1,0)); points.push(new THREE.Vector3(0,-1,0)); for(let i=0;i<k;i++) points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/k),0,Math.sin((2*Math.PI*i)/k))); }
         if (points.length >= 4) {
-          const convexGeo = new THREE.ConvexGeometry(points);
-          const pos = convexGeo.attributes.position;
-          for(let i = 0; i < pos.count; i += 3) {
-            const v1 = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
-            const v2 = new THREE.Vector3(pos.getX(i+1), pos.getY(i+1), pos.getZ(i+1));
-            const v3 = new THREE.Vector3(pos.getX(i+2), pos.getY(i+2), pos.getZ(i+2));
-            const findIdx = (vec) => points.findIndex(p => p.distanceTo(vec) < 0.001);
-            const idx1 = findIdx(v1), idx2 = findIdx(v2), idx3 = findIdx(v3);
-            if(idx1 !== -1 && idx2 !== -1 && idx3 !== -1) faces.push([idx1, idx2, idx3]);
+          const pos = new THREE.ConvexGeometry(points).attributes.position;
+          for(let i=0; i<pos.count; i+=3) {
+            const v1=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)), v2=new THREE.Vector3(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1)), v3=new THREE.Vector3(pos.getX(i+2),pos.getY(i+2),pos.getZ(i+2));
+            const i1=points.findIndex(p=>p.distanceTo(v1)<0.001), i2=points.findIndex(p=>p.distanceTo(v2)<0.001), i3=points.findIndex(p=>p.distanceTo(v3)<0.001);
+            if(i1!==-1&&i2!==-1&&i3!==-1) faces.push([i1,i2,i3]);
           }
         }
       }
-
-      return {
-        vertices: points.map((p, i) => ({ id: `vc${i}`, name: `頂点 ${i+1}`, defaultLabel: `要素 ${i+1}`, v: [p.x, p.y, p.z] })),
-        faces: faces,
-        edges: explicitEdges ? explicitEdges : getEdges(faces)
-      };
+      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
-    function isCurrentFlatMode() {
-      const flatEl = document.getElementById('flatPolygonToggle');
-      if (flatEl && flatEl.checked) return true;
-      const type = document.getElementById('shapeSelect').value;
-      if (type === 'custom') {
-        const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
-        return vertCount < 4;
-      }
-      return false;
-    }
+    function isCurrentFlatMode() { const e = document.getElementById('flatPolygonToggle'); if(e&&e.checked)return true; return document.getElementById('shapeSelect').value==='custom' && (parseInt(document.getElementById('customVertices').value)||12)<4; }
 
     // --- 状態管理・比較データ ---
     let shapeData = SHAPES.tetrahedron;
     let labelMemory = { origin: '中心' }; 
     let scoreMemory = {}; 
-    let compareData = null; 
+    let hiddenVertices = {}; // id -> boolean
+    let compareDataList = []; // 最大4
 
     // --- ペア色付けロジック ---
     const pairColorPalette = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#9b5de5', '#00f5d4', '#f15bb5', '#fee440'];
     function assignPairColors(vertices) {
-      let colorIndex = 0;
-      const paired = new Set();
-      
-      vertices.forEach(v => v.pairColor = ''); 
-
-      for (let i = 0; i < vertices.length; i++) {
-        if (paired.has(i)) continue;
+      let colorIdx = 0; const paired = new Set(); vertices.forEach(v => v.pairColor = ''); 
+      for(let i=0; i<vertices.length; i++) {
+        if(paired.has(i)) continue;
         const v1 = new THREE.Vector3(...vertices[i].v);
-        
-        for (let j = i + 1; j < vertices.length; j++) {
-          if (paired.has(j)) continue;
-          const v2 = new THREE.Vector3(...vertices[j].v);
-          if (v1.clone().add(v2).length() < 0.1) {
-            const color = pairColorPalette[colorIndex % pairColorPalette.length];
-            vertices[i].pairColor = color;
-            vertices[j].pairColor = color;
-            paired.add(i); paired.add(j);
-            colorIndex++;
-            break;
+        for(let j=i+1; j<vertices.length; j++) {
+          if(paired.has(j)) continue;
+          if(v1.clone().add(new THREE.Vector3(...vertices[j].v)).length() < 0.1) {
+            vertices[i].pairColor = vertices[j].pairColor = pairColorPalette[colorIdx % pairColorPalette.length];
+            paired.add(i).add(j); colorIdx++; break;
           }
         }
       }
     }
 
     // --- Three.js セットアップ ---
-    const container = document.getElementById('viewport');
-    container.innerHTML = ''; 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-    camera.position.set(2.5, 2, 3);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    container.appendChild(renderer.domElement);
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-
+    const container = document.getElementById('viewport'); container.innerHTML = ''; 
+    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000); camera.position.set(2.5, 2, 3);
+    const renderer = new THREE.WebGLRenderer({ antialias: true }); container.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    dirLight.position.set(5, 10, 7); scene.add(dirLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.position.set(5, 10, 7); scene.add(dirLight);
 
-    const pointGeo = new THREE.SphereGeometry(0.06, 32, 32);
-    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false }); 
-    const dataPoint = new THREE.Mesh(pointGeo, pointMat);
-    dataPoint.renderOrder = 9999;
-    
-    const auraGeo = new THREE.SphereGeometry(0.12, 32, 32);
-    const auraMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.4, depthTest: false });
-    const auraPoint = new THREE.Mesh(auraGeo, auraMat);
-    auraPoint.renderOrder = 9998;
-    dataPoint.add(auraPoint);
-    scene.add(dataPoint);
-
-    const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
-    const sphereMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, wireframe: true });
-    const boundingSphere = new THREE.Mesh(sphereGeo, sphereMat);
-    scene.add(boundingSphere);
+    const dataPoint = new THREE.Mesh(new THREE.SphereGeometry(0.06, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffff00, depthTest: false })); dataPoint.renderOrder = 9999;
+    const auraPoint = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0.4, depthTest: false })); auraPoint.renderOrder = 9998;
+    dataPoint.add(auraPoint); scene.add(dataPoint);
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.05, wireframe: true })));
 
     const wireframeGroup = new THREE.Group(); scene.add(wireframeGroup);
     const regionGroup = new THREE.Group(); scene.add(regionGroup);
@@ -798,724 +468,491 @@
     const labelGroup = new THREE.Group(); scene.add(labelGroup);
 
     // --- 動的UI生成と更新 ---
-    function toggleCustomConfig() {
-      const isCustom = document.getElementById('shapeSelect').value === 'custom';
-      document.getElementById('custom-config').style.display = isCustom ? 'flex' : 'none';
-    }
-
-    function rebuildCustom() {
-      initShapeUI();
-    }
+    function toggleCustomConfig() { document.getElementById('custom-config').style.display = document.getElementById('shapeSelect').value==='custom'?'flex':'none'; }
+    function rebuildCustom() { initShapeUI(); }
 
     function initShapeUI() {
-      const type = document.getElementById('shapeSelect').value;
-      const flatEl = document.getElementById('flatPolygonToggle');
-      const is2DFlat = flatEl ? flatEl.checked : false;
-      
+      const type = document.getElementById('shapeSelect').value, is2DFlat = (document.getElementById('flatPolygonToggle')||{}).checked||false;
       updateMobileFlatButton();
-
-      if (type === 'custom') {
-        const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
-        shapeData = generateCustomShape(Math.max(vertCount, 2), is2DFlat);
-      } else {
-        if (is2DFlat) {
-          let vc = 4;
-          if(type === 'bipyramid') vc = 5;
-          if(type === 'octahedron') vc = 6;
-          if(type === 'hexahedron') vc = 8;
-          shapeData = generateCustomShape(vc, true);
-        } else {
-          shapeData = SHAPES[type];
-        }
-      }
-      
+      if (type === 'custom') { shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
+      else { shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
-      
       assignPairColors(shapeData.vertices);
 
-      const slidersDiv = document.getElementById('sliders-container');
-      const labelsDiv = document.getElementById('labels-container');
-      const planeSelect = document.getElementById('planeSelect');
-      
-      slidersDiv.innerHTML = '';
-      labelsDiv.innerHTML = `<div class="control-group"><label>中心点 (原点)</label><input type="text" id="label_origin" value="${labelMemory['origin']}" oninput="saveMemAndPlot()"></div>`;
-      planeSelect.innerHTML = '';
+      // 非表示リストのクリーンアップ（存在しないIDは消す）
+      const newIds = shapeData.vertices.map(v=>v.id);
+      Object.keys(hiddenVertices).forEach(k => { if(!newIds.includes(k)) delete hiddenVertices[k]; });
+
+      document.getElementById('sliders-container').innerHTML = '';
+      document.getElementById('labels-container').innerHTML = `<div class="control-group"><label>中心点 (原点)</label><input type="text" id="label_origin" value="${labelMemory['origin']}" oninput="saveMemAndPlot()"></div>`;
+      document.getElementById('planeSelect').innerHTML = '';
 
       shapeData.vertices.forEach(vert => {
         if (!(vert.id in scoreMemory)) scoreMemory[vert.id] = 0.5;
         if (!(vert.id in labelMemory)) labelMemory[vert.id] = vert.defaultLabel;
-
         const currentLabel = labelMemory[vert.id];
+        const isHidden = hiddenVertices[vert.id];
 
-        slidersDiv.innerHTML += `
-          <div class="control-group">
+        document.getElementById('sliders-container').innerHTML += `
+          <div class="control-group" style="${isHidden?'display:none;':''}">
             <label id="lbl_${vert.id}">${currentLabel}: ${scoreMemory[vert.id]}</label>
             <input type="range" id="score_${vert.id}" class="score-slider" min="0" max="1" step="0.05" value="${scoreMemory[vert.id]}" oninput="saveMemAndPlot()">
           </div>`;
 
         const borderStyle = vert.pairColor ? `border-left: 6px solid ${vert.pairColor};` : '';
-
-        labelsDiv.innerHTML += `
-          <div class="control-group drag-item" draggable="true" data-id="${vert.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="${borderStyle}">
+        document.getElementById('labels-container').innerHTML += `
+          <div class="control-group drag-item ${isHidden?'hidden-item':''}" draggable="true" data-id="${vert.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="${borderStyle}">
             <div style="display:flex; justify-content:space-between; align-items:center;">
               <label style="cursor:grab;">≡ ${vert.name}</label>
               <div class="edit-only" style="display:flex; gap:4px;">
                 <button type="button" class="help-btn-small" onclick="moveLabelUp('${vert.id}')">▲</button>
                 <button type="button" class="help-btn-small" onclick="moveLabelDown('${vert.id}')">▼</button>
+                <button type="button" class="help-btn-small" onclick="toggleVertexVisibility('${vert.id}')" style="background:${isHidden?'#aa3333':'#33aa33'}">👁</button>
               </div>
             </div>
-            <input type="text" id="label_${vert.id}" value="${currentLabel}" oninput="saveMemAndPlot()">
+            <input type="text" id="label_${vert.id}" value="${currentLabel}" oninput="saveMemAndPlot()" ${isHidden?'disabled':''}>
           </div>`;
 
-        planeSelect.innerHTML += `<option id="opt_${vert.id}" value="${vert.id}">${currentLabel} から見下ろす</option>`;
+        if(!isHidden) document.getElementById('planeSelect').innerHTML += `<option id="opt_${vert.id}" value="${vert.id}">${currentLabel} から見下ろす</option>`;
       });
 
-      planeSelect.disabled = isCurrentFlatMode();
-
-      toggleLock();
-      buildStatic3DShapes();
-      updatePlot();
+      document.getElementById('planeSelect').disabled = isCurrentFlatMode();
+      toggleLock(); buildStatic3DShapes(); updatePlot();
     }
 
-    function moveLabelUp(id) {
+    function toggleVertexVisibility(id) {
       if(document.body.classList.contains('viewer-mode')) return;
-      const idx = shapeData.vertices.findIndex(v => v.id === id);
-      if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id);
+      hiddenVertices[id] = !hiddenVertices[id];
+      initShapeUI(); // UI全再構築（手抜きだが確実）
     }
-    function moveLabelDown(id) {
-      if(document.body.classList.contains('viewer-mode')) return;
-      const idx = shapeData.vertices.findIndex(v => v.id === id);
-      if (idx < shapeData.vertices.length - 1) swapLabels(id, shapeData.vertices[idx+1].id);
-    }
+
+    function moveLabelUp(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id); }
+    function moveLabelDown(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx < shapeData.vertices.length - 1) swapLabels(id, shapeData.vertices[idx+1].id); }
     function swapLabels(id1, id2) {
-      const input1 = document.getElementById(`label_${id1}`);
-      const input2 = document.getElementById(`label_${id2}`);
-      if (input1 && input2) {
-        const temp = input1.value; input1.value = input2.value; input2.value = temp;
-        saveMemAndPlot();
-      }
+      const input1 = document.getElementById(`label_${id1}`), input2 = document.getElementById(`label_${id2}`);
+      if (input1 && input2) { const temp = input1.value; input1.value = input2.value; input2.value = temp; saveMemAndPlot(); }
     }
 
     function saveMemAndPlot() {
       if(document.body.classList.contains('viewer-mode')) return; 
-      const originInput = document.getElementById('label_origin');
-      if (originInput) labelMemory['origin'] = originInput.value;
-      
+      const originInput = document.getElementById('label_origin'); if (originInput) labelMemory['origin'] = originInput.value;
       shapeData.vertices.forEach(v => {
-        const scoreEl = document.getElementById(`score_${v.id}`);
-        const labelEl = document.getElementById(`label_${v.id}`);
-        if(scoreEl) {
-          const val = parseFloat(scoreEl.value);
-          scoreMemory[v.id] = val;
-          const currentLabel = labelEl ? labelEl.value : v.defaultLabel;
-          labelMemory[v.id] = currentLabel;
-          const lbl = document.getElementById(`lbl_${v.id}`);
-          if (lbl) lbl.innerText = `${currentLabel}: ${val}`;
-          const opt = document.getElementById(`opt_${v.id}`);
-          if(opt) opt.innerText = `${currentLabel} から見下ろす`;
+        const scoreEl = document.getElementById(`score_${v.id}`), labelEl = document.getElementById(`label_${v.id}`);
+        if(scoreEl && !hiddenVertices[v.id]) {
+          scoreMemory[v.id] = parseFloat(scoreEl.value); labelMemory[v.id] = labelEl ? labelEl.value : v.defaultLabel;
+          const lbl = document.getElementById(`lbl_${v.id}`); if (lbl) lbl.innerText = `${labelMemory[v.id]}: ${scoreMemory[v.id]}`;
+          const opt = document.getElementById(`opt_${v.id}`); if(opt) opt.innerText = `${labelMemory[v.id]} から見下ろす`;
         }
       });
       updatePlot();
     }
 
-    function toggleLock() {
-      const isLocked = document.getElementById('lockScores').checked;
-      document.querySelectorAll('.score-slider').forEach(el => el.disabled = isLocked);
-    }
+    function toggleLock() { document.querySelectorAll('.score-slider').forEach(el => el.disabled = document.getElementById('lockScores').checked); }
+    function updateRotationSettings() { controls.autoRotate = document.getElementById('autoRotate').checked; controls.autoRotateSpeed = 2.0 * parseFloat(document.getElementById('rotateDir').value); }
 
-    function updateRotationSettings() {
-      controls.autoRotate = document.getElementById('autoRotate').checked;
-      controls.autoRotateSpeed = 2.0 * parseFloat(document.getElementById('rotateDir').value);
-    }
-
-    // --- D&D ロジック ---
     let draggedId = null;
     function handleDragStart(e) { if(document.body.classList.contains('viewer-mode')) return; draggedId = e.currentTarget.dataset.id; e.dataTransfer.effectAllowed = 'move'; }
     function handleDragOver(e) { if(document.body.classList.contains('viewer-mode')) return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
     document.addEventListener('dragleave', (e) => { if(e.target.classList && e.target.classList.contains('drag-item')) e.target.classList.remove('drag-over'); });
-    function handleDrop(e) {
-      if(document.body.classList.contains('viewer-mode')) return;
-      e.preventDefault(); e.currentTarget.classList.remove('drag-over');
-      const dropId = e.currentTarget.dataset.id;
-      if (draggedId && draggedId !== dropId) swapLabels(draggedId, dropId);
+    function handleDrop(e) { if(document.body.classList.contains('viewer-mode')) return; e.preventDefault(); e.currentTarget.classList.remove('drag-over'); const dropId = e.currentTarget.dataset.id; if (draggedId && draggedId !== dropId) swapLabels(draggedId, dropId); }
+
+    // --- 比較用ファイル読込処理と検証 ---
+    function getPairList(labelsMap, vertices) {
+      const pairs = [], used = new Set();
+      vertices.forEach((v1, i) => {
+        if(used.has(i)) return;
+        vertices.forEach((v2, j) => {
+          if(i>=j || used.has(j)) return;
+          if(new THREE.Vector3(...v1.v).clone().add(new THREE.Vector3(...v2.v)).length() < 0.1) {
+            pairs.push([labelsMap[v1.id]||'', labelsMap[v2.id]||''].sort().join('-'));
+            used.add(i).add(j);
+          }
+        });
+      });
+      return pairs.sort();
     }
 
-    // --- 比較用ファイル読込処理 ---
+    function validateCompareData(importedState) {
+      const currentShape = document.getElementById('shapeSelect').value;
+      if (importedState.shape !== currentShape) { showModal("読込エラー", `多面体モデルが異なります。<br>現在のモデル: ${currentShape}<br>読込モデル: ${importedState.shape}`); return false; }
+      
+      let isInitial = true;
+      shapeData.vertices.forEach(v => { if (labelMemory[v.id] !== v.defaultLabel) isInitial = false; });
+      if (isInitial) {
+        for (let id in importedState.labels) { if (id !== 'origin') labelMemory[id] = importedState.labels[id]; }
+        initShapeUI(); return true;
+      }
+      
+      const cLabels = shapeData.vertices.map(v => labelMemory[v.id]).sort();
+      const iLabels = Object.keys(importedState.labels).filter(k=>k!=='origin').map(k => importedState.labels[k]).sort();
+      if (cLabels.join(',') !== iLabels.join(',')) {
+        let t = "<table border='1' style='width:100%; border-collapse:collapse; margin-top:10px;'><tr><th>現在のラベル</th><th>読込データ</th></tr>";
+        for(let i=0; i<Math.max(cLabels.length, iLabels.length); i++) t += `<tr><td>${cLabels[i]||''}</td><td>${iLabels[i]||''}</td></tr>`;
+        showModal("ラベル不一致", "設定済みのラベルと読込データのラベルが異なります。比較できません。" + t + "</table>"); return false;
+      }
+      
+      const cPairs = getPairList(labelMemory, shapeData.vertices);
+      const iPairs = getPairList(importedState.labels, shapeData.vertices); // 同じ図形なので頂点配列を流用
+      if (cPairs.join(',') !== iPairs.join(',')) {
+        showModal("対向ペア不一致", "ラベルは同一ですが、対立頂点の組み合わせが異なります。<br><br>現在:<br>" + cPairs.join('<br>') + "<br><br>読込:<br>" + iPairs.join('<br>')); return false;
+      }
+      return true;
+    }
+
     function handleCompareFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+      const file = e.target.files[0]; if (!file) return;
+      if(compareDataList.length >= 4) { alert("比較データは最大4つまでです。"); e.target.value=''; return; }
       const reader = new FileReader();
       reader.onload = (event) => {
-        const text = event.target.result;
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, "text/html");
+        const doc = new DOMParser().parseFromString(event.target.result, "text/html");
         const stateScript = doc.getElementById('save-state');
         if (stateScript) {
           try {
-            compareData = JSON.parse(stateScript.textContent);
-            document.getElementById('clearCompareBtn').style.display = 'block';
-            document.getElementById('compare-info').innerText = "✅ 比較データを表示中";
-            updatePlot();
+            const importedState = JSON.parse(stateScript.textContent);
+            if(validateCompareData(importedState)) {
+              importedState._filename = file.name;
+              compareDataList.push(importedState);
+              renderCompareList(); updatePlot();
+            }
           } catch (err) { alert('データが読み込めませんでした。'); }
         } else { alert('比較用データが見つかりません。'); }
-      };
-      reader.readAsText(file);
-      e.target.value = '';
+      }; reader.readAsText(file); e.target.value = '';
     }
 
-    function clearCompare() {
-      compareData = null;
-      document.getElementById('clearCompareBtn').style.display = 'none';
-      document.getElementById('compare-info').innerText = "";
-      updatePlot();
+    function removeCompareData(idx) { compareDataList.splice(idx, 1); renderCompareList(); updatePlot(); }
+    function clearCompare() { compareDataList = []; renderCompareList(); updatePlot(); }
+    
+    function renderCompareList() {
+      const listEl = document.getElementById('compare-list'); listEl.innerHTML = '';
+      if(compareDataList.length > 0) {
+        document.getElementById('clearCompareBtn').style.display = 'block';
+        compareDataList.forEach((data, i) => {
+          const colHex = document.getElementById(`compColor${i+1}`).value;
+          listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${colHex}; font-size:12px;">
+            <span>${data._filename||'読込データ'+(i+1)}</span>
+            <button class="secondary-btn" style="padding:2px 6px; background:#aa3333;" onclick="removeCompareData(${i})">×</button>
+          </div>`;
+        });
+      } else { document.getElementById('clearCompareBtn').style.display = 'none'; }
     }
 
     // --- 3D 描画関連 ---
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
-      const geom = new THREE.BufferGeometry();
-      const vertices = [];
-      shapeData.vertices.forEach(v => vertices.push(...v.v));
-      geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      if(activeVerts.length < 3) return;
       
-      const indices = [];
-      shapeData.edges.forEach(edge => indices.push(edge[0], edge[1]));
-      geom.setIndex(indices);
-
-      const wireMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-      const wire = new THREE.LineSegments(geom, wireMat);
-      wireframeGroup.add(wire);
+      const isFlat = isCurrentFlatMode();
+      const posArr = [], innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
+      innerP.forEach(p => posArr.push(p.x, p.y, p.z));
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+      
+      let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
+      if(isFlat || innerP.length === 3) { // 2D輪郭
+        const hullIdx = getConvexHullIndices2D(innerP, {u:1,v:0}, {u:0,v:1}); // Z=0前提の簡易処理
+        const lineGeo = new THREE.BufferGeometry(); const lp = [];
+        hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
+        lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+        wireframeGroup.add(new THREE.Line(lineGeo, finalEdgesMat));
+      } else { // 3D Convex
+        try {
+          const cg = new THREE.ConvexGeometry(innerP);
+          wireframeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(cg), finalEdgesMat));
+        } catch(e) {}
+      }
     }
 
     function createTextSprite(message, color, scaleFactor, alwaysOnTop = false) {
       const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-      ctx.font = "Bold 40px sans-serif";
-      const metrics = ctx.measureText(message);
+      ctx.font = "Bold 40px sans-serif"; const metrics = ctx.measureText(message);
       canvas.width = metrics.width + 24; canvas.height = 56;
-      ctx.font = "Bold 40px sans-serif"; ctx.fillStyle = color;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = "Bold 40px sans-serif"; ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(message, canvas.width / 2, canvas.height / 2);
-
-      const tex = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: !alwaysOnTop });
-      const sprite = new THREE.Sprite(mat);
-      if(alwaysOnTop) sprite.renderOrder = 1000;
-      sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1);
-      return sprite;
+      const tex = new THREE.CanvasTexture(canvas); const mat = new THREE.SpriteMaterial({ map: tex, depthTest: !alwaysOnTop });
+      const sprite = new THREE.Sprite(mat); if(alwaysOnTop) sprite.renderOrder = 1000;
+      sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1); return sprite;
     }
 
     function createOriginTextSprite(originText, color, scaleFactor) {
       const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
-      ctx.font = "Bold 40px sans-serif";
-      const dotStr = "●", labelStr = originText ? " " + originText : "";
+      ctx.font = "Bold 40px sans-serif"; const dotStr = "●", labelStr = originText ? " " + originText : "";
       const dotWidth = ctx.measureText(dotStr).width, labelWidth = ctx.measureText(labelStr).width, padding = 12;
       canvas.width = dotWidth + labelWidth + padding * 2; canvas.height = 56;
       ctx.font = "Bold 40px sans-serif"; ctx.fillStyle = color; ctx.textBaseline = 'middle';
       const dotCenterX = padding + dotWidth / 2;
       ctx.textAlign = 'center'; ctx.fillText(dotStr, dotCenterX, canvas.height / 2);
       if (labelStr) { ctx.textAlign = 'left'; ctx.fillText(labelStr, padding + dotWidth, canvas.height / 2); }
-
-      const tex = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
-      const sprite = new THREE.Sprite(mat);
-      sprite.renderOrder = 1000;
-      sprite.center.set(dotCenterX / canvas.width, 0.5); 
-      sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1);
+      const tex = new THREE.CanvasTexture(canvas); const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+      const sprite = new THREE.Sprite(mat); sprite.renderOrder = 1000;
+      sprite.center.set(dotCenterX / canvas.width, 0.5); sprite.scale.set(canvas.width * 0.004 * scaleFactor, canvas.height * 0.004 * scaleFactor, 1);
       return sprite;
     }
 
-    function updatePlot() {
-      const P = [];
-      let sumX = 0, sumY = 0, sumZ = 0;
+    function getConvexHullIndices2D(points3D, vecU, vecV) {
+      if (points3D.length <= 3) return points3D.map((_, i) => i);
+      const pts = points3D.map((p, i) => ({ index: i, u: p.x*vecU.u + p.z*vecU.v, v: p.x*vecV.u + p.z*vecV.v }));
+      pts.sort((a,b) => a.u!==b.u ? a.u-b.u : a.v-b.v);
+      const cross = (o, a, b) => (a.u-o.u)*(b.v-o.v) - (a.v-o.v)*(b.u-o.u);
+      const lower = []; for(let i=0; i<pts.length; i++) { while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i])<=0) lower.pop(); lower.push(pts[i]); }
+      const upper = []; for(let i=pts.length-1; i>=0; i--) { while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i])<=0) upper.pop(); upper.push(pts[i]); }
+      lower.pop(); upper.pop(); return lower.concat(upper).map(p=>p.index);
+    }
 
-      shapeData.vertices.forEach(vert => {
-        const score = scoreMemory[vert.id];
-        const px = vert.v[0] * score, py = vert.v[1] * score, pz = vert.v[2] * score;
-        P.push({ x: px, y: py, z: pz });
-        sumX += px; sumY += py; sumZ += pz;
+    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group) {
+      if(vec3Array.length < 3) return;
+      const isFlat = isCurrentFlatMode();
+      
+      if(isFlat || vec3Array.length === 3) {
+        // 2D平面化 (X-Z平面近似)
+        const hullIdx = getConvexHullIndices2D(vec3Array, {u:1,v:0}, {u:0,v:1});
+        const shape = new THREE.Shape();
+        shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
+        for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
+        const geo = new THREE.ShapeGeometry(shape);
+        geo.rotateX(Math.PI/2); // Y軸が上になるように
+        
+        // スコアによるYの変動を手動適用
+        const pos = geo.attributes.position;
+        // 面の描画
+        group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
+        
+        // 輪郭線
+        const lineGeo = new THREE.BufferGeometry(); const lp = [];
+        hullIdx.forEach(idx => lp.push(vec3Array[idx].x, vec3Array[idx].y, vec3Array[idx].z));
+        lp.push(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].y, vec3Array[hullIdx[0]].z);
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+        group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+      } else {
+        // 3D凸包
+        try {
+          const cg = new THREE.ConvexGeometry(vec3Array);
+          group.add(new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
+          group.add(new THREE.LineSegments(new THREE.EdgesGeometry(cg), new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+        } catch(e) {}
+      }
+    }
+
+    function updatePlot() {
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      const P_vecs = []; let sumX=0, sumY=0, sumZ=0;
+      
+      activeVerts.forEach(vert => {
+        const s = scoreMemory[vert.id]||0; const px=vert.v[0]*s, py=vert.v[1]*s, pz=vert.v[2]*s;
+        P_vecs.push(new THREE.Vector3(px,py,pz)); sumX+=px; sumY+=py; sumZ+=pz;
       });
       
-      const count = P.length || 1;
-      let cx = sumX / count, cy = sumY / count, cz = sumZ / count;
-
+      const count = P_vecs.length || 1; let cx = sumX/count, cy = sumY/count, cz = sumZ/count;
       const enhanceCheck = document.getElementById('enhanceMovement');
       if (enhanceCheck && enhanceCheck.checked) {
-        const factor = count; 
-        cx *= factor; cy *= factor; cz *= factor;
-        
-        const dist = Math.sqrt(cx*cx + cy*cy + cz*cz);
-        const maxDist = 1.2;
-        if (dist > maxDist) {
-          cx = (cx / dist) * maxDist;
-          cy = (cy / dist) * maxDist;
-          cz = (cz / dist) * maxDist;
-        }
+        cx*=count; cy*=count; cz*=count; const dist = Math.sqrt(cx*cx+cy*cy+cz*cz), maxD = 1.2;
+        if(dist>maxD) { cx=(cx/dist)*maxD; cy=(cy/dist)*maxD; cz=(cz/dist)*maxD; }
       }
-
       dataPoint.position.set(cx, cy, cz); 
 
       while(regionGroup.children.length > 0) regionGroup.remove(regionGroup.children[0]);
       while(compareGroup.children.length > 0) compareGroup.remove(compareGroup.children[0]);
 
-      // --- 詳細設定の取得 ---
-      const mainColorHex = document.getElementById('mainColor') ? document.getElementById('mainColor').value : '#00ffcc';
-      const compColorHex = document.getElementById('compColor') ? document.getElementById('compColor').value : '#ff00ff';
-      const faceOpacity = document.getElementById('faceOpacity') ? parseFloat(document.getElementById('faceOpacity').value) : 0.4;
-      const lineOpacity = document.getElementById('lineOpacity') ? parseFloat(document.getElementById('lineOpacity').value) : 0.9;
+      const mainColorHex = document.getElementById('mainColor')?document.getElementById('mainColor').value:'#00ffcc';
+      const faceOpacity = document.getElementById('faceOpacity')?parseFloat(document.getElementById('faceOpacity').value):0.4;
+      const lineOpacity = document.getElementById('lineOpacity')?parseFloat(document.getElementById('lineOpacity').value):0.9;
 
-      // --- 自身の描画 (3D) ---
-      if (shapeData.faces && shapeData.faces.length > 0) {
-        const regionGeo = new THREE.BufferGeometry();
-        const posArray = new Float32Array(P.length * 3);
-        P.forEach((p, i) => { posArray[i*3]=p.x; posArray[i*3+1]=p.y; posArray[i*3+2]=p.z; });
-        regionGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const faces = []; shapeData.faces.forEach(f => faces.push(...f));
-        regionGeo.setIndex(faces);
-        
-        const regionMat = new THREE.MeshBasicMaterial({ 
-          color: mainColorHex, transparent: true, opacity: faceOpacity, 
-          side: THREE.DoubleSide, depthWrite: false 
-        });
-        const regionMesh = new THREE.Mesh(regionGeo, regionMat);
-        regionGroup.add(regionMesh);
-
-        const edgesGeo = new THREE.EdgesGeometry(regionGeo);
-        const edgesMat = new THREE.LineBasicMaterial({ 
-          color: mainColorHex, transparent: true, opacity: lineOpacity, 
-          linewidth: 2, depthTest: true, depthWrite: true
-        });
-        const edgesLine = new THREE.LineSegments(edgesGeo, edgesMat);
-        regionGroup.add(edgesLine);
-
-      } else {
-        const innerWireGeo = new THREE.BufferGeometry(); const innerWirePos = [];
-        shapeData.edges.forEach(edge => {
-          innerWirePos.push(P[edge[0]].x, P[edge[0]].y, P[edge[0]].z);
-          innerWirePos.push(P[edge[1]].x, P[edge[1]].y, P[edge[1]].z);
-        });
-        innerWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(innerWirePos, 3));
-        regionGroup.add(new THREE.LineSegments(innerWireGeo, new THREE.LineBasicMaterial({ color: mainColorHex, transparent: true, opacity: lineOpacity })));
-      }
-
-      // --- 比較データの描画 (3D) ---
-      let compP = null;
-      let compCx = 0, compCy = 0, compCz = 0;
-
-      if (compareData && compareData.labels && compareData.scores) {
-        compP = [];
-        let cSumX = 0, cSumY = 0, cSumZ = 0;
-        
-        shapeData.vertices.forEach(vert => {
-          const currentLabelName = labelMemory[vert.id] || vert.defaultLabel;
-          let compScore = 0;
-          let matchedId = null;
-          for (const [id, labelName] of Object.entries(compareData.labels)) {
-            if (labelName === currentLabelName) { matchedId = id; break; }
-          }
-          if (matchedId && compareData.scores[matchedId] !== undefined) {
-            compScore = compareData.scores[matchedId];
-          }
-          const cpx = vert.v[0] * compScore, cpy = vert.v[1] * compScore, cpz = vert.v[2] * compScore;
-          compP.push({ x: cpx, y: cpy, z: cpz });
-          cSumX += cpx; cSumY += cpy; cSumZ += cpz;
-        });
-
-        let ccnt = compP.length || 1;
-        compCx = cSumX / ccnt; compCy = cSumY / ccnt; compCz = cSumZ / ccnt;
-
-        if (enhanceCheck && enhanceCheck.checked) {
-          const factor = ccnt; 
-          compCx *= factor; compCy *= factor; compCz *= factor;
-          const dist = Math.sqrt(compCx*compCx + compCy*compCy + compCz*compCz);
-          const maxDist = 1.2;
-          if (dist > maxDist) {
-            compCx = (compCx / dist) * maxDist;
-            compCy = (compCy / dist) * maxDist;
-            compCz = (compCz / dist) * maxDist;
-          }
-        }
-
-        if (shapeData.faces && shapeData.faces.length > 0) {
-          const compGeo = new THREE.BufferGeometry();
-          const compPos = new Float32Array(compP.length * 3);
-          compP.forEach((p, i) => { compPos[i*3]=p.x; compPos[i*3+1]=p.y; compPos[i*3+2]=p.z; });
-          compGeo.setAttribute('position', new THREE.BufferAttribute(compPos, 3));
-          const faces = []; shapeData.faces.forEach(f => faces.push(...f));
-          compGeo.setIndex(faces);
-          
-          const compMat = new THREE.MeshBasicMaterial({ 
-            color: compColorHex, transparent: true, opacity: faceOpacity * 0.75,
-            side: THREE.DoubleSide, depthWrite: false 
-          });
-          compareGroup.add(new THREE.Mesh(compGeo, compMat));
-
-          const compEdgesGeo = new THREE.EdgesGeometry(compGeo);
-          const compEdgesMat = new THREE.LineBasicMaterial({ 
-            color: compColorHex, transparent: true, opacity: lineOpacity * 0.9, 
-            linewidth: 2, depthTest: true, depthWrite: true
-          });
-          compareGroup.add(new THREE.LineSegments(compEdgesGeo, compEdgesMat));
-        } else {
-          const compWireGeo = new THREE.BufferGeometry(); const compWirePos = [];
-          shapeData.edges.forEach(edge => {
-            compWirePos.push(compP[edge[0]].x, compP[edge[0]].y, compP[edge[0]].z);
-            compWirePos.push(compP[edge[1]].x, compP[edge[1]].y, compP[edge[1]].z);
-          });
-          compWireGeo.setAttribute('position', new THREE.Float32BufferAttribute(compWirePos, 3));
-          compareGroup.add(new THREE.LineSegments(compWireGeo, new THREE.LineBasicMaterial({ color: compColorHex, transparent: true, opacity: lineOpacity })));
-        }
-
-        // 比較用 重心プロットの追加 (3D)
-        const compPointGeo = new THREE.SphereGeometry(0.06, 32, 32);
-        const compPointMat = new THREE.MeshBasicMaterial({ color: compColorHex, depthTest: false });
-        const compPointMesh = new THREE.Mesh(compPointGeo, compPointMat);
-        compPointMesh.renderOrder = 9999;
-        
-        const compAura = new THREE.Mesh(
-          new THREE.SphereGeometry(0.12, 32, 32), 
-          new THREE.MeshBasicMaterial({ color: compColorHex, transparent: true, opacity: 0.4, depthTest: false })
-        );
-        compAura.renderOrder = 9998;
-        compPointMesh.add(compAura);
-        compPointMesh.position.set(compCx, compCy, compCz);
-        compareGroup.add(compPointMesh);
-      }
-
-      // --- ラベル描画 ---
-      while(labelGroup.children.length > 0) {
-        const c = labelGroup.children[0];
-        if (c.material.map) c.material.map.dispose();
-        c.material.dispose(); labelGroup.remove(c);
-      }
-      const scaleFactor = parseFloat(document.getElementById('labelSize').value);
-      
-      const originText = labelMemory['origin'];
-      if (originText !== undefined) {
-        const sp = createOriginTextSprite(originText, mainColorHex, scaleFactor);
-        sp.position.set(0, 0, 0); 
-        labelGroup.add(sp);
-      }
-      shapeData.vertices.forEach(v => {
-        const text = labelMemory[v.id];
-        if (text) {
-          const sp = createTextSprite(text, '#ffcccc', scaleFactor);
-          sp.position.set(v.v[0]*1.15, v.v[1]*1.15, v.v[2]*1.15);
-          labelGroup.add(sp);
-        }
-      });
-
-      draw2DProjection(P, {x: cx, y: cy, z: cz}, compP, {x: compCx, y: compCy, z: compCz}, mainColorHex, compColorHex, faceOpacity, lineOpacity);
-    }
-
-    // --- 2D投影・画像出力 ---
-    function draw2DProjection(innerP, originPt, compP, compOriginPt, mainHex, compHex, fOpacity, lOpacity) {
-      const canvas = document.getElementById('projection-canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
-      
-      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const cx = canvas.width / 2, cy = canvas.height / 2;
-      const scale = Math.min(cx, cy) * 0.7; 
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(cx, cy, scale, 0, Math.PI * 2); ctx.stroke();
-
-      const flatMode = isCurrentFlatMode();
-      let U, V;
-
-      if (flatMode) {
-        U = new THREE.Vector3(1, 0, 0); V = new THREE.Vector3(0, 0, 1);
-      } else {
-        const viewId = document.getElementById('planeSelect').value;
-        const viewVert = shapeData.vertices.find(v => v.id === viewId);
-        if (!viewVert) return;
-        const N = new THREE.Vector3(...viewVert.v).normalize();
-        let up = new THREE.Vector3(0, 1, 0);
-        if (Math.abs(N.y) > 0.99) up = new THREE.Vector3(0, 0, 1);
-        U = new THREE.Vector3().crossVectors(up, N).normalize();
-        V = new THREE.Vector3().crossVectors(N, U).normalize();
-      }
-
-      const project = (ptArray) => {
-        const vec = new THREE.Vector3(ptArray[0], ptArray[1], ptArray[2]);
-        return { u: cx + vec.dot(U) * scale, v: cy + vec.dot(V) * scale };
-      };
-      const projectObj = (obj) => project([obj.x, obj.y, obj.z]);
-
-      // 2D凸包(Convex Hull)によるシルエット抽出
-      const getConvexHullIndices = (points) => {
-        if (points.length <= 3) return points.map(p => p.index);
-        const sorted = points.slice().sort((a, b) => a.u !== b.u ? a.u - b.u : a.v - b.v);
-        const cross = (o, a, b) => (a.u - o.u) * (b.v - o.v) - (a.v - o.v) * (b.u - o.u);
-        const lower = [];
-        for (let i = 0; i < sorted.length; i++) {
-          while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) lower.pop();
-          lower.push(sorted[i]);
-        }
-        const upper = [];
-        for (let i = sorted.length - 1; i >= 0; i--) {
-          while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) upper.pop();
-          upper.push(sorted[i]);
-        }
-        lower.pop(); upper.pop();
-        return lower.concat(upper).map(p => p.index);
-      };
-
-      let perimeterIndices = [];
-      if (flatMode) {
-        perimeterIndices = shapeData.vertices.map((_, i) => i);
-      } else {
-        const basePoints2D = shapeData.vertices.map((v, i) => {
-          const p = project(v.v);
-          return { index: i, u: p.u, v: p.v };
-        });
-        perimeterIndices = getConvexHullIndices(basePoints2D);
-      }
-
-      // 外枠
-      ctx.strokeStyle = '#555'; ctx.lineWidth = 1;
-      ctx.beginPath();
-      for(let i=0; i<perimeterIndices.length; i++) {
-        const p = project(shapeData.vertices[perimeterIndices[i]].v);
-        if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
-      }
-      ctx.closePath(); ctx.stroke();
-
-      // 中心から外周へのガイドライン
-      ctx.strokeStyle = '#333'; ctx.beginPath();
-      perimeterIndices.forEach(idx => {
-        const p = project(shapeData.vertices[idx].v);
-        ctx.moveTo(cx, cy); ctx.lineTo(p.u, p.v);
-      });
-      ctx.stroke();
+      // 自身描画
+      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup);
 
       // 比較データ描画
-      if (compP) {
-        ctx.fillStyle = hexToRgba(compHex, fOpacity * 0.5); 
-        ctx.strokeStyle = hexToRgba(compHex, lOpacity); 
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for(let i=0; i<perimeterIndices.length; i++) {
-          const p = projectObj(compP[perimeterIndices[i]]);
-          if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
+      const compP_vecs_list = []; const compCentroids = [];
+      compareDataList.forEach((cData, i) => {
+        const cv = []; let cSumX=0, cSumY=0, cSumZ=0;
+        activeVerts.forEach(vert => {
+          const lName = labelMemory[vert.id] || vert.defaultLabel; let cScore = 0;
+          let mId = Object.keys(cData.labels).find(k => cData.labels[k]===lName);
+          if (mId && cData.scores[mId]!==undefined) cScore = cData.scores[mId];
+          const px=vert.v[0]*cScore, py=vert.v[1]*cScore, pz=vert.v[2]*cScore;
+          cv.push(new THREE.Vector3(px,py,pz)); cSumX+=px; cSumY+=py; cSumZ+=pz;
+        });
+        compP_vecs_list.push(cv);
+        
+        let ccx = cSumX/count, ccy = cSumY/count, ccz = cSumZ/count;
+        if(enhanceCheck && enhanceCheck.checked) {
+          ccx*=count; ccy*=count; ccz*=count; const d=Math.sqrt(ccx*ccx+ccy*ccy+ccz*ccz);
+          if(d>1.2) { ccx=(ccx/d)*1.2; ccy=(ccy/d)*1.2; ccz=(ccz/d)*1.2; }
         }
-        ctx.closePath(); ctx.fill(); ctx.stroke();
+        compCentroids.push({x:ccx, y:ccy, z:ccz});
+        
+        const colHex = document.getElementById(`compColor${i+1}`).value;
+        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup);
+
+        const cpMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06,32,32), new THREE.MeshBasicMaterial({color:colHex, depthTest:false})); cpMesh.renderOrder=9999;
+        cpMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,32,32), new THREE.MeshBasicMaterial({color:colHex, transparent:true, opacity:0.4, depthTest:false})));
+        cpMesh.position.set(ccx, ccy, ccz); compareGroup.add(cpMesh);
+      });
+
+      // ラベル
+      while(labelGroup.children.length > 0) { const c=labelGroup.children[0]; if(c.material.map)c.material.map.dispose(); c.material.dispose(); labelGroup.remove(c); }
+      const sFactor = parseFloat(document.getElementById('labelSize').value);
+      if (labelMemory['origin'] !== undefined) { const sp = createOriginTextSprite(labelMemory['origin'], mainColorHex, sFactor); sp.position.set(0,0,0); labelGroup.add(sp); }
+      activeVerts.forEach(v => {
+        if(labelMemory[v.id]) { const sp = createTextSprite(labelMemory[v.id], '#ffcccc', sFactor); sp.position.set(v.v[0]*1.15, v.v[1]*1.15, v.v[2]*1.15); labelGroup.add(sp); }
+      });
+
+      draw2DProjection(P_vecs, {x:cx,y:cy,z:cz}, compP_vecs_list, compCentroids, mainColorHex, faceOpacity, lineOpacity, activeVerts);
+    }
+
+    function draw2DProjection(P_vecs, originPt, compP_vecs_list, compCentroids, mainHex, fOpacity, lOpacity, activeVerts) {
+      const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
+      canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
+      ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
+
+      const flatMode = isCurrentFlatMode(); let U, V;
+      if (flatMode) { U = new THREE.Vector3(1,0,0); V = new THREE.Vector3(0,0,1); } 
+      else {
+        const viewId = document.getElementById('planeSelect').value; const viewVert = shapeData.vertices.find(v=>v.id===viewId);
+        if(!viewVert) return;
+        const N = new THREE.Vector3(...viewVert.v).normalize(); let up = new THREE.Vector3(0,1,0); if(Math.abs(N.y)>0.99) up = new THREE.Vector3(0,0,1);
+        U = new THREE.Vector3().crossVectors(up,N).normalize(); V = new THREE.Vector3().crossVectors(N,U).normalize();
       }
 
-      // 自身の描画
-      ctx.fillStyle = hexToRgba(mainHex, fOpacity * 0.75); 
-      ctx.strokeStyle = hexToRgba(mainHex, lOpacity); 
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for(let i=0; i<perimeterIndices.length; i++) {
-        const p = projectObj(innerP[perimeterIndices[i]]);
-        if (i===0) ctx.moveTo(p.u, p.v); else ctx.lineTo(p.u, p.v);
-      }
+      const projectObj = (obj) => ({ u: cx+(obj.x*U.x+obj.y*U.y+obj.z*U.z)*scale, v: cy+(obj.x*V.x+obj.y*V.y+obj.z*V.z)*scale });
+      const basePoints2D = activeVerts.map((v,i) => { const p=projectObj({x:v.v[0],y:v.v[1],z:v.v[2]}); return {index:i, u:p.u, v:p.v}; });
+      
+      const getConvexHullIndices = (pts) => {
+        if(pts.length<=3) return pts.map(p=>p.index);
+        const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
+        const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
+        const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
+        const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
+        lower.pop(); upper.pop(); return lower.concat(upper).map(p=>p.index);
+      };
+
+      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices(basePoints2D);
+
+      // 外枠ガイド
+      ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
+      perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
+
+      // 比較描画
+      compP_vecs_list.forEach((compP, i) => {
+        const cHex = document.getElementById(`compColor${i+1}`).value;
+        ctx.fillStyle=hexToRgba(cHex, fOpacity*0.5); ctx.strokeStyle=hexToRgba(cHex, lOpacity); ctx.lineWidth=2; ctx.beginPath();
+        perimIdx.forEach((idx,j)=>{ const p=projectObj(compP[idx]); if(j===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      });
+
+      // 自身描画
+      ctx.fillStyle=hexToRgba(mainHex, fOpacity*0.75); ctx.strokeStyle=hexToRgba(mainHex, lOpacity); ctx.lineWidth=2; ctx.beginPath();
+      perimIdx.forEach((idx,i)=>{ const p=projectObj(P_vecs[idx]); if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
       ctx.closePath(); ctx.fill(); ctx.stroke();
 
-      // ラベルテキスト
-      ctx.font = '12px sans-serif'; ctx.fillStyle = '#ccc';
-      shapeData.vertices.forEach(v => {
-        const p = project(v.v);
-        const text = labelMemory[v.id];
-        if (text) {
-          const dx = p.u - cx;
-          const dy = p.v - cy;
-          const len = Math.sqrt(dx*dx + dy*dy);
-          let lx = p.u, ly = p.v;
-          if (len > 0.1) {
-            lx = p.u + (dx / len) * 14;
-            ly = p.v + (dy / len) * 14;
-          }
-          ctx.textAlign = dx > 5 ? 'left' : (dx < -5 ? 'right' : 'center');
-          ctx.textBaseline = dy > 5 ? 'top' : (dy < -5 ? 'bottom' : 'middle');
-          ctx.fillText(text, lx, ly);
+      // ラベル
+      ctx.font='12px sans-serif'; ctx.fillStyle='#ccc';
+      activeVerts.forEach((v,i) => {
+        if (labelMemory[v.id]) {
+          const p = basePoints2D[i], dx = p.u-cx, dy = p.v-cy, len = Math.sqrt(dx*dx+dy*dy);
+          let lx=p.u, ly=p.v; if(len>0.1) { lx+=(dx/len)*14; ly+=(dy/len)*14; }
+          ctx.textAlign=dx>5?'left':(dx<-5?'right':'center'); ctx.textBaseline=dy>5?'top':(dy<-5?'bottom':'middle');
+          ctx.fillText(labelMemory[v.id], lx, ly);
         }
       });
 
-      // 原点
-      const oProj = projectObj({x: 0, y: 0, z: 0});
-      const originName = labelMemory['origin'] || '';
-      const dotStr = "●";
-      ctx.font = 'Bold 14px sans-serif'; ctx.fillStyle = mainHex; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(dotStr, oProj.u, oProj.v);
-      if (originName) {
-        ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
-        ctx.fillText(" " + originName, oProj.u + ctx.measureText(dotStr).width / 2, oProj.v + 1);
-      }
-      
-      // 比較データ用 重心 (2D)
-      if (compP && compOriginPt) {
-        const cpProj = projectObj(compOriginPt);
-        ctx.fillStyle = hexToRgba(compHex, 0.4); ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 10, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = compHex; ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 5, 0, Math.PI*2); ctx.fill();
-      }
+      const oProj = projectObj({x:0,y:0,z:0}); ctx.font='Bold 14px sans-serif'; ctx.fillStyle=mainHex; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText("●", oProj.u, oProj.v);
+      if(labelMemory['origin']){ ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText(" "+labelMemory['origin'], oProj.u+6, oProj.v+1); }
 
-      // 自身の重心 (黄色のプロット) 
+      compCentroids.forEach((cp, i) => {
+        const cHex = document.getElementById(`compColor${i+1}`).value; const cpProj=projectObj(cp);
+        ctx.fillStyle=hexToRgba(cHex, 0.4); ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle=cHex; ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 5, 0, Math.PI*2); ctx.fill();
+      });
+
       const cProj = projectObj(originPt);
-      ctx.fillStyle = 'rgba(255, 255, 0, 0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,0,0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
     }
 
     async function exportAll2DMaps() {
-      const canvas = document.getElementById('projection-canvas');
-      const planeSelect = document.getElementById('planeSelect');
-      const originalPlane = planeSelect.value;
-      const flatMode = isCurrentFlatMode();
-      
+      const cvs = document.getElementById('projection-canvas'), ps = document.getElementById('planeSelect'), orig = ps.value;
       alert('すべての投影パターンのダウンロードを開始します。\n※ブラウザの「複数ファイルのダウンロード許可」を求められた場合は許可してください。');
-
-      if (flatMode) {
-        const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 1.0);
-        a.download = `2D_FlatPolygon_projection.jpg`; a.click();
+      if (isCurrentFlatMode()) {
+        const a=document.createElement('a'); a.href=cvs.toDataURL("image/jpeg", 1.0); a.download=`2D_Flat_projection.jpg`; a.click();
       } else {
-        for(const vert of shapeData.vertices) {
-          planeSelect.value = vert.id; updatePlot();
-          await new Promise(r => setTimeout(r, 100));
-          const a = document.createElement('a'); a.href = canvas.toDataURL("image/jpeg", 1.0);
-          const safeLabel = (labelMemory[vert.id] || vert.name).replace(/\//g, '_');
-          a.download = `2D_${safeLabel}_projection.jpg`; a.click();
-          await new Promise(r => setTimeout(r, 600));
+        const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+        for(const v of activeVerts) {
+          ps.value=v.id; updatePlot(); await new Promise(r=>setTimeout(r,100));
+          const a=document.createElement('a'); a.href=cvs.toDataURL("image/jpeg", 1.0);
+          a.download=`2D_${(labelMemory[v.id]||v.name).replace(/\//g,'_')}_projection.jpg`; a.click();
+          await new Promise(r=>setTimeout(r,600));
         }
-        planeSelect.value = originalPlane; updatePlot();
+        ps.value=orig; updatePlot();
       }
     }
 
-    function onWindowResize() {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-      updatePlot(); 
-    }
+    function onWindowResize() { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); updatePlot(); }
     window.addEventListener('resize', onWindowResize);
 
-    // --- HTMLエクスポート ---
     function prepareStateScript(isViewer) {
-      document.querySelectorAll('input[type="range"], input[type="text"], input[type="number"], input[type="color"], textarea').forEach(el => {
-        if (el.tagName === 'TEXTAREA') { el.textContent = el.value; } else { el.setAttribute('value', el.value); }
-      });
-      document.querySelectorAll('input[type="checkbox"]').forEach(el => {
-        if(el.checked) el.setAttribute('checked', 'checked'); else el.removeAttribute('checked');
-      });
-      document.querySelectorAll('select').forEach(el => {
-        Array.from(el.options).forEach(opt => { if(opt.selected) opt.setAttribute('selected', 'selected'); else opt.removeAttribute('selected'); });
-      });
+      document.querySelectorAll('input[type="range"], input[type="text"], input[type="number"], input[type="color"], textarea').forEach(el => { if(el.tagName==='TEXTAREA')el.textContent=el.value; else el.setAttribute('value',el.value); });
+      document.querySelectorAll('input[type="checkbox"]').forEach(el => { if(el.checked)el.setAttribute('checked','checked'); else el.removeAttribute('checked'); });
+      document.querySelectorAll('select').forEach(el => { Array.from(el.options).forEach(opt=>{if(opt.selected)opt.setAttribute('selected','selected'); else opt.removeAttribute('selected');}); });
       document.getElementById('lockScores').setAttribute('checked', 'checked');
 
-      let stateScript = document.getElementById('save-state') || document.createElement('script');
-      stateScript.id = 'save-state'; stateScript.type = 'application/json';
-      document.head.appendChild(stateScript);
-      
-      const flatEl = document.getElementById('flatPolygonToggle');
-      const enhanceEl = document.getElementById('enhanceMovement');
-      const mainCol = document.getElementById('mainColor');
-      const compCol = document.getElementById('compColor');
-      const fOpac = document.getElementById('faceOpacity');
-      const lOpac = document.getElementById('lineOpacity');
-      
+      let script = document.getElementById('save-state') || document.createElement('script'); script.id='save-state'; script.type='application/json'; document.head.appendChild(script);
       const stateObj = {
-        shape: document.getElementById('shapeSelect').value,
-        customVertices: document.getElementById('customVertices').value,
-        is2DFlat: flatEl ? flatEl.checked : false,
-        enhanceMovement: enhanceEl ? enhanceEl.checked : false,
-        mainColor: mainCol ? mainCol.value : '#00ffcc',
-        compColor: compCol ? compCol.value : '#ff00ff',
-        faceOpacity: fOpac ? fOpac.value : '0.4',
-        lineOpacity: lOpac ? lOpac.value : '0.9',
-        labels: labelMemory, scores: scoreMemory,
-        memoText: document.getElementById('memoInput').value,
-        photos: photosList,
-        isViewerMode: isViewer
+        shape: document.getElementById('shapeSelect').value, customVertices: document.getElementById('customVertices').value,
+        is2DFlat: (document.getElementById('flatPolygonToggle')||{}).checked||false, enhanceMovement: (document.getElementById('enhanceMovement')||{}).checked||false,
+        mainColor: document.getElementById('mainColor').value, faceOpacity: document.getElementById('faceOpacity').value, lineOpacity: document.getElementById('lineOpacity').value,
+        compColor1: document.getElementById('compColor1').value, compColor2: document.getElementById('compColor2').value, compColor3: document.getElementById('compColor3').value, compColor4: document.getElementById('compColor4').value,
+        labels: labelMemory, scores: scoreMemory, hiddenVertices: hiddenVertices, memoText: document.getElementById('memoInput').value, photos: photosList, compareDataList: compareDataList, isViewerMode: isViewer
       };
-      stateScript.textContent = JSON.stringify(stateObj);
-      return stateObj;
+      script.textContent = JSON.stringify(stateObj); return stateObj;
     }
 
     function exportHTML() {
-      prepareStateScript(false);
-      const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
-      const blob = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      let filename = prompt("保存するファイル名を入力", "3d_evaluation_chart.html");
-      if (!filename) return;
-      if (!filename.endsWith('.html')) filename += '.html';
-      a.download = filename; a.click();
+      prepareStateScript(false); const blob=new Blob(["<!DOCTYPE html>\n"+document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); let fn=prompt("保存ファイル名","3d_evaluation_chart.html");
+      if(!fn)return; if(!fn.endsWith('.html'))fn+='.html'; a.download=fn; a.click();
     }
-
     function exportViewerHTML() {
-      const originalObj = prepareStateScript(true);
-      const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
-      
-      originalObj.isViewerMode = false;
-      document.getElementById('save-state').textContent = JSON.stringify(originalObj);
-
-      let filename = prompt("保存する閲覧用ファイル名を入力", "viewer_eval_chart.html");
-      if (!filename) return;
-      if (!filename.endsWith('.html')) filename += '.html';
-
-      const blob = new Blob([htmlContent], {type: 'text/html;charset=utf-8'});
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = filename; a.click();
-      alert("閲覧専用のHTMLをダウンロードしました。\nこのファイルは編集不可で軽量化されており、他者との共有（LINEやAirDropなど）に最適です。");
+      const orig=prepareStateScript(true); const blob=new Blob(["<!DOCTYPE html>\n"+document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
+      orig.isViewerMode=false; document.getElementById('save-state').textContent=JSON.stringify(orig);
+      let fn=prompt("閲覧用ファイル名","viewer_eval_chart.html"); if(!fn)return; if(!fn.endsWith('.html'))fn+='.html';
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fn; a.click();
+      alert("閲覧専用のHTMLをダウンロードしました。");
     }
 
     function loadSavedState() {
-      const savedMemo = localStorage.getItem('eval_chart_memo');
-      if (savedMemo !== null) document.getElementById('memoInput').value = savedMemo;
-      const savedPhotos = localStorage.getItem('eval_chart_photos');
-      if (savedPhotos !== null) { try { photosList = JSON.parse(savedPhotos); } catch(e){} }
-
-      const stateScript = document.getElementById('save-state');
-      if (stateScript && stateScript.textContent) {
+      const sMemo=localStorage.getItem('eval_chart_memo'); if(sMemo!==null)document.getElementById('memoInput').value=sMemo;
+      const sPhotos=localStorage.getItem('eval_chart_photos'); if(sPhotos!==null)try{photosList=JSON.parse(sPhotos);}catch(e){}
+      const script=document.getElementById('save-state');
+      if (script&&script.textContent) {
         try {
-          const stateObj = JSON.parse(stateScript.textContent);
-          if (stateObj.isViewerMode) {
-            document.body.classList.add('viewer-mode');
-            document.getElementById('lockScores').checked = true;
-            document.getElementById('memoInput').disabled = true;
-            if(stateObj.photos && stateObj.photos.length > 0) document.getElementById('viewer-album-btn').style.display = 'flex';
-          }
-          document.getElementById('shapeSelect').value = stateObj.shape;
-          if(stateObj.customVertices) document.getElementById('customVertices').value = stateObj.customVertices;
-          if(stateObj.is2DFlat !== undefined && document.getElementById('flatPolygonToggle')) {
-            document.getElementById('flatPolygonToggle').checked = stateObj.is2DFlat;
-          }
-          if(stateObj.enhanceMovement !== undefined && document.getElementById('enhanceMovement')) {
-            document.getElementById('enhanceMovement').checked = stateObj.enhanceMovement;
-          }
-          if(stateObj.mainColor && document.getElementById('mainColor')) document.getElementById('mainColor').value = stateObj.mainColor;
-          if(stateObj.compColor && document.getElementById('compColor')) document.getElementById('compColor').value = stateObj.compColor;
-          if(stateObj.faceOpacity && document.getElementById('faceOpacity')) document.getElementById('faceOpacity').value = stateObj.faceOpacity;
-          if(stateObj.lineOpacity && document.getElementById('lineOpacity')) document.getElementById('lineOpacity').value = stateObj.lineOpacity;
-
-          labelMemory = stateObj.labels || labelMemory;
-          scoreMemory = stateObj.scores || scoreMemory;
-          if(stateObj.memoText !== undefined) document.getElementById('memoInput').value = stateObj.memoText;
-          if(stateObj.photos) photosList = stateObj.photos;
-        } catch(e) { console.error("復元失敗", e); }
+          const state = JSON.parse(script.textContent);
+          if (state.isViewerMode) { document.body.classList.add('viewer-mode'); document.getElementById('lockScores').checked=true; document.getElementById('memoInput').disabled=true; if(state.photos&&state.photos.length>0)document.getElementById('viewer-album-btn').style.display='flex'; }
+          document.getElementById('shapeSelect').value=state.shape;
+          if(state.customVertices)document.getElementById('customVertices').value=state.customVertices;
+          if(state.is2DFlat!==undefined&&document.getElementById('flatPolygonToggle'))document.getElementById('flatPolygonToggle').checked=state.is2DFlat;
+          if(state.enhanceMovement!==undefined&&document.getElementById('enhanceMovement'))document.getElementById('enhanceMovement').checked=state.enhanceMovement;
+          if(state.mainColor&&document.getElementById('mainColor'))document.getElementById('mainColor').value=state.mainColor;
+          for(let i=1;i<=4;i++) if(state[`compColor${i}`]&&document.getElementById(`compColor${i}`)) document.getElementById(`compColor${i}`).value=state[`compColor${i}`];
+          if(state.faceOpacity&&document.getElementById('faceOpacity'))document.getElementById('faceOpacity').value=state.faceOpacity;
+          if(state.lineOpacity&&document.getElementById('lineOpacity'))document.getElementById('lineOpacity').value=state.lineOpacity;
+          labelMemory=state.labels||labelMemory; scoreMemory=state.scores||scoreMemory; hiddenVertices=state.hiddenVertices||{};
+          if(state.memoText!==undefined)document.getElementById('memoInput').value=state.memoText;
+          if(state.photos)photosList=state.photos;
+          if(state.compareDataList) { compareDataList=state.compareDataList; renderCompareList(); }
+        } catch(e){}
       }
-
-      document.getElementById('photoCount').innerText = photosList.length;
-      toggleCustomConfig();
-      initShapeUI();
-      
-      if (document.body.classList.contains('viewer-mode')) {
-        document.querySelectorAll('input[type="text"]').forEach(el => el.disabled = true);
-      }
-
-      if (window.innerWidth <= 900) setMobileTab('config');
-      
-      setTimeout(onWindowResize, 100);
+      document.getElementById('photoCount').innerText=photosList.length;
+      toggleCustomConfig(); initShapeUI();
+      if(document.body.classList.contains('viewer-mode')) document.querySelectorAll('input[type="text"]').forEach(el=>el.disabled=true);
+      if(window.innerWidth<=900) setMobileTab('config'); setTimeout(onWindowResize,100);
     }
 
     loadSavedState();
-
-    function animate() {
-      requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene, camera);
-    }
-    animate();
+    function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); } animate();
   </script>
 </body>
 </html>
