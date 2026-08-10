@@ -2,8 +2,8 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>立体評価チャート・プロトタイプ v17</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>立体評価チャート・プロトタイプ v18</title>
   <style>
     :root {
       --bottom-panel-height: 40vh;
@@ -14,14 +14,14 @@
     /* 左サイドバー */
     #sidebar { 
       width: 350px; min-width: 250px; max-width: 500px; height: 100vh;
-      padding: 15px 20px 15px 15px; background: #2a2a2a; 
+      padding: 15px 20px calc(15px + env(safe-area-inset-bottom)) 15px; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; 
       box-shadow: 2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
     }
     /* 右サイドバー */
     #right-sidebar {
       width: 350px; min-width: 250px; max-width: 600px; height: 100vh;
-      padding: 15px 15px 15px 20px; background: #2a2a2a; 
+      padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 20px; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; 
       box-shadow: -2px 0 10px rgba(0,0,0,0.5); overflow-y: auto; position: relative;
     }
@@ -94,7 +94,7 @@
     }
     button.secondary-btn:hover { background: #666; }
     .help-btn { background: #555; color: #fff; border-radius: 50%; width: 24px; height: 24px; border: none; font-weight: bold; cursor: pointer; display: inline-flex; justify-content: center; align-items: center;}
-    .help-btn-small { background: #555; color: #fff; border-radius: 50%; width: 18px; height: 18px; border: none; font-weight: bold; font-size: 12px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; margin-left: 4px;}
+    .help-btn-small { background: #555; color: #fff; border-radius: 4px; width: 28px; height: 24px; border: none; font-weight: bold; font-size: 12px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center;}
 
     /* 写真アルバム用モーダル */
     #album-modal {
@@ -141,7 +141,8 @@
       #sidebar, #right-sidebar { 
         order: 4; width: 100% !important; max-width: none; 
         height: var(--bottom-panel-height) !important; 
-        border: none; border-top: 1px solid #444; padding: 15px; 
+        border: none; border-top: 1px solid #444; 
+        padding: 15px 15px calc(15px + env(safe-area-inset-bottom)) 15px; 
       }
       
       .mobile-section { display: none !important; }
@@ -194,8 +195,8 @@
   <!-- スマホ用メニューバー -->
   <div id="mobile-nav">
     <button class="nav-btn active" onclick="setMobileTab('config')"><span class="icon">⚙️</span><span>設定/比較</span></button>
-    <button class="nav-btn" onclick="setMobileTab('score')"><span class="icon">📊</span><span>スコア</span></button>
     <button class="nav-btn" onclick="setMobileTab('label')"><span class="icon">🏷️</span><span>ラベル</span></button>
+    <button class="nav-btn" onclick="setMobileTab('score')"><span class="icon">📊</span><span>スコア</span></button>
     <button class="nav-btn" onclick="setMobileTab('2d')"><span class="icon">🗺️</span><span>2D投影</span></button>
     <button class="nav-btn" onclick="setMobileTab('memo')"><span class="icon">📝</span><span>写真/メモ</span></button>
   </div>
@@ -207,7 +208,7 @@
     <!-- 設定・比較セクション -->
     <div id="det-config" class="mobile-section">
       <div class="row-group">
-        <h3>評価プロトタイプ v17</h3>
+        <h3>評価プロトタイプ v18</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
@@ -216,11 +217,17 @@
       </div>
       
       <div class="control-group edit-only">
-        <label>多面体モデル選択</label>
-        <select id="shapeSelect" onchange="toggleCustomConfig(); initShapeUI();">
+        <div class="row-group" style="align-items: flex-end;">
+          <label>多面体モデル選択</label>
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:#00ffcc; cursor:pointer; font-weight:bold;">
+            <input type="checkbox" id="flatPolygonToggle" onchange="initShapeUI()"> 平面(2D)化
+          </label>
+        </div>
+        <select id="shapeSelect" onchange="toggleCustomConfig(); initShapeUI();" style="margin-bottom:4px;">
           <option value="tetrahedron">正四面体 (4頂点)</option>
-          <option value="octahedron">正八面体 (6頂点)</option>
           <option value="bipyramid">双三角錐 (5頂点)</option>
+          <option value="octahedron">正八面体 (6頂点)</option>
+          <option value="hexahedron">正六面体 (8頂点)</option>
           <option value="custom">自由設計 (N頂点 自動配置)</option>
         </select>
       </div>
@@ -229,9 +236,6 @@
       <div id="custom-config" style="display:none;" class="row-group edit-only">
         <label>頂点の数 (2〜50):</label>
         <input type="number" id="customVertices" min="2" max="50" value="12" style="width: 70px;" onchange="rebuildCustom()">
-        <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:#aaa; cursor:pointer;">
-          <input type="checkbox" id="flatPolygonToggle" onchange="rebuildCustom()"> 平面(2D)
-        </label>
         <button class="secondary-btn" onclick="rebuildCustom()">再生成</button>
       </div>
 
@@ -261,7 +265,7 @@
           <div class="row-group" style="justify-content: flex-start; gap: 5px;">
             <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
             <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
-            <button class="help-btn-small" onclick="showEnhanceInfo()">?</button>
+            <button class="help-btn-small" style="border-radius:50%; width:18px; height:18px;" onclick="showEnhanceInfo()">?</button>
           </div>
           <div class="control-group">
             <label>3Dラベルのサイズ</label>
@@ -271,8 +275,16 @@
       </details>
     </div>
 
+    <!-- ラベル設定とスコア設定の順序を入れ替え -->
+    <details open id="det-label" class="mobile-section">
+      <summary>1. 頂点ラベル設定 (入替可能)</summary>
+      <div class="section-content" id="labels-container">
+        <!-- 動的生成エリア -->
+      </div>
+    </details>
+
     <details open id="det-score" class="mobile-section">
-      <summary>1. 評価スコア入力</summary>
+      <summary>2. 評価スコア入力</summary>
       <div class="section-content">
         <div class="row-group edit-only">
           <label style="color:#00ffcc; font-weight:bold;">入力をロックする</label>
@@ -282,12 +294,6 @@
       </div>
     </details>
 
-    <details open id="det-label" class="mobile-section">
-      <summary>2. 頂点ラベル設定 (D&Dで入替可能)</summary>
-      <div class="section-content" id="labels-container">
-        <!-- 動的生成エリア -->
-      </div>
-    </details>
   </div>
 
   <!-- スマホ用リサイザー -->
@@ -555,6 +561,16 @@
         ],
         faces: [[0,1,2], [0,2,3], [0,3,1], [1,3,2]]
       },
+      bipyramid: {
+        vertices: [
+          { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
+          { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
+          { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] },
+          { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] },
+          { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] }
+        ],
+        faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]]
+      },
       octahedron: {
         vertices: [
           { id: 'v0', name: '頂点 Top (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
@@ -566,15 +582,25 @@
         ],
         faces: [[0,2,4], [0,4,3], [0,3,5], [0,5,2], [1,4,2], [1,3,4], [1,5,3], [1,2,5]]
       },
-      bipyramid: {
+      hexahedron: {
         vertices: [
-          { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] },
-          { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] },
-          { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] },
-          { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] },
-          { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] }
-        ],
-        faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]]
+          { id: 'v0', name: '頂上・右前', defaultLabel: '要素 1', v: [1, 1, 1] },
+          { id: 'v1', name: '頂上・左前', defaultLabel: '要素 2', v: [-1, 1, 1] },
+          { id: 'v2', name: '頂上・左奥', defaultLabel: '要素 3', v: [-1, 1, -1] },
+          { id: 'v3', name: '頂上・右奥', defaultLabel: '要素 4', v: [1, 1, -1] },
+          { id: 'v4', name: '底面・右前', defaultLabel: '要素 5', v: [1, -1, 1] },
+          { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] },
+          { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] },
+          { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] }
+        ].map(pt => { pt.v = pt.v.map(val => val / Math.sqrt(3)); return pt; }), // 半径1の球に内接するよう調整
+        faces: [
+          [0,1,2], [0,2,3], // Top
+          [4,6,5], [4,7,6], // Bottom 
+          [0,5,1], [0,4,5], // Front
+          [1,6,2], [1,5,6], // Left
+          [2,7,3], [2,6,7], // Back
+          [3,4,0], [3,7,4]  // Right
+        ]
       }
     };
 
@@ -627,7 +653,7 @@
           const rawPoints = [ [-1, -1, -1], [1, -1, -1], [1, 1, -1], [-1, 1, -1], [-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1], [0, -1/phi, -phi], [0, 1/phi, -phi], [0, -1/phi, phi], [0, 1/phi, phi], [-1/phi, -phi, 0], [1/phi, -phi, 0], [-1/phi, phi, 0], [1/phi, phi, 0], [-phi, 0, -1/phi], [phi, 0, -1/phi], [-phi, 0, 1/phi], [phi, 0, 1/phi] ];
           points = rawPoints.map(p => new THREE.Vector3(p[0]/r, p[1]/r, p[2]/r));
         } else if (n % 2 === 0) {
-          // 偶数の場合: 必ず原点対称な点（点対称ペア）を持つように生成 (角柱的配置)
+          // 偶数の場合: 必ず原点対称な点（点対称ペア）を持つように生成
           const k = n / 2; const h = 0.55; const r = Math.sqrt(1 - h * h);
           for (let i = 0; i < k; i++) {
             const theta = (2 * Math.PI * i) / k;
@@ -667,17 +693,19 @@
     }
 
     function isCurrentFlatMode() {
-      const type = document.getElementById('shapeSelect').value;
-      if (type !== 'custom') return false;
-      const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
       const flatEl = document.getElementById('flatPolygonToggle');
-      const is2DFlat = flatEl ? flatEl.checked : false;
-      return is2DFlat || vertCount < 4;
+      if (flatEl && flatEl.checked) return true;
+      const type = document.getElementById('shapeSelect').value;
+      if (type === 'custom') {
+        const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
+        return vertCount < 4;
+      }
+      return false;
     }
 
     // --- 状態管理・比較データ ---
     let shapeData = SHAPES.tetrahedron;
-    let labelMemory = { origin: 'コア/シック' }; 
+    let labelMemory = { origin: '中心' }; 
     let scoreMemory = {}; 
     let compareData = null; 
 
@@ -755,23 +783,29 @@
     }
 
     function rebuildCustom() {
-      const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
-      const flatEl = document.getElementById('flatPolygonToggle');
-      const is2DFlat = flatEl ? flatEl.checked : false;
-      SHAPES['custom'] = generateCustomShape(Math.min(Math.max(vertCount, 2), 50), is2DFlat);
       initShapeUI();
     }
 
     function initShapeUI() {
       const type = document.getElementById('shapeSelect').value;
-      if(type === 'custom') {
+      const flatEl = document.getElementById('flatPolygonToggle');
+      const is2DFlat = flatEl ? flatEl.checked : false;
+      
+      if (type === 'custom') {
         const vertCount = parseInt(document.getElementById('customVertices').value) || 12;
-        const flatEl = document.getElementById('flatPolygonToggle');
-        const is2DFlat = flatEl ? flatEl.checked : false;
-        SHAPES['custom'] = generateCustomShape(Math.max(vertCount, 2), is2DFlat);
+        shapeData = generateCustomShape(Math.max(vertCount, 2), is2DFlat);
+      } else {
+        if (is2DFlat) {
+          let vc = 4;
+          if(type === 'bipyramid') vc = 5;
+          if(type === 'octahedron') vc = 6;
+          if(type === 'hexahedron') vc = 8;
+          shapeData = generateCustomShape(vc, true);
+        } else {
+          shapeData = SHAPES[type];
+        }
       }
       
-      shapeData = SHAPES[type];
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
       
       // 対向頂点の判定と色付け
@@ -802,7 +836,13 @@
 
         labelsDiv.innerHTML += `
           <div class="control-group drag-item" draggable="true" data-id="${vert.id}" ondragstart="handleDragStart(event)" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" style="${borderStyle}">
-            <label>≡ ${vert.name}</label>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label style="cursor:grab;">≡ ${vert.name}</label>
+              <div class="edit-only" style="display:flex; gap:4px;">
+                <button type="button" class="help-btn-small" onclick="moveLabelUp('${vert.id}')">▲</button>
+                <button type="button" class="help-btn-small" onclick="moveLabelDown('${vert.id}')">▼</button>
+              </div>
+            </div>
             <input type="text" id="label_${vert.id}" value="${currentLabel}" oninput="saveMemAndPlot()">
           </div>`;
 
@@ -814,6 +854,26 @@
       toggleLock();
       buildStatic3DShapes();
       updatePlot();
+    }
+
+    // スマホ用ラベル順序入替処理
+    function moveLabelUp(id) {
+      if(document.body.classList.contains('viewer-mode')) return;
+      const idx = shapeData.vertices.findIndex(v => v.id === id);
+      if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id);
+    }
+    function moveLabelDown(id) {
+      if(document.body.classList.contains('viewer-mode')) return;
+      const idx = shapeData.vertices.findIndex(v => v.id === id);
+      if (idx < shapeData.vertices.length - 1) swapLabels(id, shapeData.vertices[idx+1].id);
+    }
+    function swapLabels(id1, id2) {
+      const input1 = document.getElementById(`label_${id1}`);
+      const input2 = document.getElementById(`label_${id2}`);
+      if (input1 && input2) {
+        const temp = input1.value; input1.value = input2.value; input2.value = temp;
+        saveMemAndPlot();
+      }
     }
 
     function saveMemAndPlot() {
@@ -857,14 +917,7 @@
       if(document.body.classList.contains('viewer-mode')) return;
       e.preventDefault(); e.currentTarget.classList.remove('drag-over');
       const dropId = e.currentTarget.dataset.id;
-      if (draggedId && draggedId !== dropId) {
-        const input1 = document.getElementById(`label_${draggedId}`);
-        const input2 = document.getElementById(`label_${dropId}`);
-        if (input1 && input2) {
-          const temp = input1.value; input1.value = input2.value; input2.value = temp;
-          saveMemAndPlot();
-        }
-      }
+      if (draggedId && draggedId !== dropId) swapLabels(draggedId, dropId);
     }
 
     // --- 比較用ファイル読込処理 ---
@@ -1159,7 +1212,7 @@
         ctx.stroke();
       }
 
-      // 【改修】ラベルテキスト (外側に押し出し)
+      // ラベルテキスト (外側に押し出し)
       ctx.font = '12px sans-serif'; ctx.fillStyle = '#ccc';
       shapeData.vertices.forEach(v => {
         const p = project(v.v);
