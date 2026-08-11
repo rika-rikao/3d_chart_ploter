@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v23.1</title>
+  <title>立体評価チャート・プロトタイプ v23.2</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,6 +31,23 @@
     /* 3Dビューポート */
     #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
     #viewport { flex: 1; position: relative; }
+
+    /* 画面左上の凡例（固定表示） */
+    #viewport-legend {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      z-index: 100;
+      pointer-events: none;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.6;
+      text-shadow: 1px 1px 2px #000;
+      border: 1px solid rgba(255,255,255,0.15);
+      display: none; /* JSで中身があれば表示 */
+    }
 
     /* UI要素 */
     details { background: #222; border: 1px solid #444; border-radius: 4px; padding: 8px; }
@@ -146,7 +163,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v23.1</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v23.2</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -256,6 +273,7 @@
 
   <div id="viewport-container">
     <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 平面(2D)化</button>
+    <div id="viewport-legend"></div>
     <div id="viewport"></div>
   </div>
 
@@ -613,13 +631,18 @@
             const headers = lines[0].split(',').map(s=>s.replace(/^"|"$/g, ''));
             const values = lines[1].split(',').map(s=>s.replace(/^"|"$/g, ''));
             const labels = {}; const scores = {}; let mG = '', mT = '';
-            headers.forEach((h, i) => {
-              const H = h.toLowerCase();
-              if(H === 'genre') mG = values[i];
-              else if(H === 'targetname') mT = values[i];
-              else {
-                const vert = shapeData.vertices.find(v => (labelMemory[v.id] === h));
-                if(vert) { labels[vert.id] = h; scores[vert.id] = parseFloat(values[i]) || 0; }
+            
+            // CSVからのインポート時は列の順番ベースで取り込む (Genre, TargetName のあとはアクティブ頂点順)
+            let dataIdx = 0;
+            if (headers.length > 0 && headers[0].toLowerCase() === 'genre') { mG = values[0]; dataIdx++; }
+            if (headers.length > 1 && headers[1].toLowerCase() === 'targetname') { mT = values[1]; dataIdx++; }
+            
+            const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+            activeVerts.forEach(v => {
+              if (dataIdx < headers.length) {
+                labels[v.id] = headers[dataIdx];
+                scores[v.id] = parseFloat(values[dataIdx]) || 0;
+                dataIdx++;
               }
             });
             importedState = { labels, scores, metaData: { genre: mG, targetName: mT } };
@@ -785,19 +808,41 @@
         cpMesh.position.set(ccx, ccy, ccz); compareGroup.add(cpMesh);
       });
 
-      // ラベル・メタ情報表示
+      // 画面左上の固定凡例(オーバーレイ)を更新
+      const legendEl = document.getElementById('viewport-legend');
+      if (legendEl) {
+        let legendHtml = '';
+        const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
+        let hasContent = false;
+        if (mText.trim() !== '[]') {
+          legendHtml += `<div style="color:${mainColorHex}; font-weight:bold; margin-bottom:4px; display:flex; align-items:center; gap:6px;">
+            <span style="display:inline-block;width:12px;height:12px;background:${mainColorHex};"></span> ${mText} <span style="color:#aaa;font-weight:normal;font-size:11px;">(編集対象)</span>
+          </div>`;
+          hasContent = true;
+        }
+        compareDataList.forEach((cData, i) => {
+          if (cData.hidden) return;
+          const cHex = document.getElementById(`compColor${i+1}`).value;
+          const cName = cData.metaData?.targetName || cData._filename || `比較${i+1}`;
+          const cGenre = cData.metaData?.genre ? `[${cData.metaData.genre}] ` : '';
+          legendHtml += `<div style="color:${cHex}; display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+            <span style="display:inline-block;width:12px;height:12px;background:${cHex};"></span> ${cGenre}${cName}
+          </div>`;
+          hasContent = true;
+        });
+        
+        if (hasContent) {
+          legendEl.innerHTML = legendHtml;
+          legendEl.style.display = 'block';
+        } else {
+          legendEl.style.display = 'none';
+        }
+      }
+
+      // 頂点ラベル・原点表示
       while(labelGroup.children.length > 0) { const c=labelGroup.children[0]; if(c.material.map)c.material.map.dispose(); c.material.dispose(); labelGroup.remove(c); }
       const sFactor = parseFloat(document.getElementById('labelSize').value);
       
-      const metaText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
-      if(metaText.trim() !== '[]') {
-        const sp = createTextSprite(metaText, '#ffffff', sFactor * 0.85, true);
-        sp.material.depthTest = false; // 常に最前面に表示して見えなくならないようにする
-        sp.renderOrder = 9999;
-        sp.position.set(0, 1.35, 0); // 球(0,0,0)の少し上、他の頂点ラベル(通常y=1.15)より上に配置
-        labelGroup.add(sp);
-      }
-
       if (labelMemory['origin'] !== undefined) { const sp = createOriginTextSprite(labelMemory['origin'], mainColorHex, sFactor); sp.position.set(0,0,0); labelGroup.add(sp); }
       activeVerts.forEach(v => {
         if(labelMemory[v.id]) { const sp = createTextSprite(labelMemory[v.id], '#ffcccc', sFactor); sp.position.set(v.v[0]*1.15, v.v[1]*1.15, v.v[2]*1.15); labelGroup.add(sp); }
@@ -828,13 +873,16 @@
       
       const getConvexHullIndices = (pts) => {
         if(pts.length<=3) return pts.map(p=>p.index);
+        let allClose = true;
+        for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
+        if(allClose) return pts.map(p => p.index);
+
         const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
         const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
         const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
         const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
         lower.pop(); upper.pop(); 
         const hull = lower.concat(upper).map(p=>p.index);
-        // 全点が重なる縮退などのエラー回避用
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
