@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v22</title>
+  <title>立体評価チャート・プロトタイプ v23</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,6 +31,9 @@
     /* 3Dビューポート */
     #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
     #viewport { flex: 1; position: relative; }
+    #hud-info { position: absolute; top: 15px; left: 15px; z-index: 50; pointer-events: none; text-shadow: 1px 1px 3px #000; }
+    #hud-genre { font-size: 12px; color: #00ffcc; }
+    #hud-name { font-size: 20px; font-weight: bold; color: #fff; margin-top: 2px; }
 
     /* UI要素 */
     details { background: #222; border: 1px solid #444; border-radius: 4px; padding: 8px; }
@@ -129,7 +132,7 @@
   <!-- 汎用メッセージモーダル -->
   <div id="alert-modal" class="overlay-modal">
     <div class="modal-box">
-      <h3 id="alert-title" style="color:#ff5555; margin-bottom:15px;">警告</h3>
+      <h3 id="alert-title" style="color:#ffaa00; margin-bottom:15px;">警告</h3>
       <div id="alert-body" style="font-size:14px; margin-bottom:20px; line-height:1.5;"></div>
       <div style="text-align:right;">
         <button class="secondary-btn" onclick="document.getElementById('alert-modal').style.display='none'">閉じる</button>
@@ -149,7 +152,7 @@
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
       <div class="row-group">
-        <h3>評価プロトタイプ v22</h3>
+        <h3>評価プロトタイプ v23</h3>
         <div>
           <button class="primary-btn edit-only" onclick="exportHTML()">通常保存</button>
           <button class="secondary-btn edit-only" onclick="exportViewerHTML()">閲覧用保存</button>
@@ -186,6 +189,22 @@
             <input type="file" id="compareInput" accept=".html" style="display:none;" onchange="handleCompareFile(event)">
           </div>
           <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
+      </details>
+
+      <details style="margin-top:5px;" class="edit-only">
+        <summary style="font-size: 13px;">💾 データ入出力 (CSV / JSON)</summary>
+        <div class="section-content">
+          <div class="row-group">
+            <button class="secondary-btn" onclick="exportData('csv')">📤 CSV保存</button>
+            <button class="secondary-btn" onclick="document.getElementById('csvInput').click()">📥 CSV読込</button>
+            <input type="file" id="csvInput" accept=".csv" style="display:none;" onchange="importData(event, 'csv')">
+          </div>
+          <div class="row-group">
+            <button class="secondary-btn" onclick="exportData('json')">📤 JSON保存</button>
+            <button class="secondary-btn" onclick="document.getElementById('jsonInput').click()">📥 JSON読込</button>
+            <input type="file" id="jsonInput" accept=".json" style="display:none;" onchange="importData(event, 'json')">
+          </div>
         </div>
       </details>
 
@@ -231,7 +250,16 @@
 
     <details open id="det-label" class="mobile-section">
       <summary>1. 頂点ラベル設定 (表示/非表示・入替可)</summary>
-      <div class="section-content" id="labels-container"></div>
+      <div class="section-content">
+        <div class="control-group">
+          <input type="text" id="metaGenre" placeholder="ジャンル名 (例: キャラクター)" oninput="updatePlot()">
+        </div>
+        <div class="control-group">
+          <input type="text" id="metaName" placeholder="記録/評価対象名 (例: 勇者A)" oninput="updatePlot()" style="font-weight:bold; color:#00ffcc;">
+        </div>
+        <hr style="border:0; border-top:1px dashed #555; margin:5px 0;">
+        <div id="labels-container" class="section-content"></div>
+      </div>
     </details>
 
     <details open id="det-score" class="mobile-section">
@@ -249,6 +277,10 @@
   <div id="mobile-resizer"></div>
 
   <div id="viewport-container">
+    <div id="hud-info">
+      <div id="hud-genre"></div>
+      <div id="hud-name"></div>
+    </div>
     <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 平面(2D)化</button>
     <div id="viewport"></div>
   </div>
@@ -397,6 +429,7 @@
     };
     function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
+    // IDを v0, v1... に固定
     function generateCustomShape(n, is2DFlat = false) {
       let points = [], faces = [], explicitEdges = null;
       if (is2DFlat || n < 4) {
@@ -420,7 +453,7 @@
           }
         }
       }
-      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
+      return { vertices: points.map((p,i) => ({ id:`v${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
     function isCurrentFlatMode() { const e = document.getElementById('flatPolygonToggle'); if(e&&e.checked)return true; return document.getElementById('shapeSelect').value==='custom' && (parseInt(document.getElementById('customVertices').value)||12)<4; }
@@ -429,8 +462,8 @@
     let shapeData = SHAPES.tetrahedron;
     let labelMemory = { origin: '中心' }; 
     let scoreMemory = {}; 
-    let hiddenVertices = {}; // id -> boolean
-    let compareDataList = []; // 最大4
+    let hiddenVertices = {}; 
+    let compareDataList = []; // { _filename, _hidden, shape, labels, scores, ... }
 
     // --- ペア色付けロジック ---
     const pairColorPalette = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#9b5de5', '#00f5d4', '#f15bb5', '#fee440'];
@@ -474,12 +507,16 @@
     function initShapeUI() {
       const type = document.getElementById('shapeSelect').value, is2DFlat = (document.getElementById('flatPolygonToggle')||{}).checked||false;
       updateMobileFlatButton();
-      if (type === 'custom') { shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
-      else { shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
+      
+      let tempVerts = [];
+      if (type === 'custom') { tempVerts = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
+      else { tempVerts = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
+      
+      // ID互換性を高めるためのディープコピー
+      shapeData = JSON.parse(JSON.stringify(tempVerts));
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
       assignPairColors(shapeData.vertices);
 
-      // 非表示リストのクリーンアップ（存在しないIDは消す）
       const newIds = shapeData.vertices.map(v=>v.id);
       Object.keys(hiddenVertices).forEach(k => { if(!newIds.includes(k)) delete hiddenVertices[k]; });
 
@@ -523,7 +560,7 @@
     function toggleVertexVisibility(id) {
       if(document.body.classList.contains('viewer-mode')) return;
       hiddenVertices[id] = !hiddenVertices[id];
-      initShapeUI(); // UI全再構築（手抜きだが確実）
+      initShapeUI(); 
     }
 
     function moveLabelUp(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id); }
@@ -573,28 +610,30 @@
     }
 
     function validateCompareData(importedState) {
-      const currentShape = document.getElementById('shapeSelect').value;
-      if (importedState.shape !== currentShape) { showModal("読込エラー", `多面体モデルが異なります。<br>現在のモデル: ${currentShape}<br>読込モデル: ${importedState.shape}`); return false; }
+      // JSONやCSVのインポート時は shape 情報がない場合があるため寛容に
+      if(importedState.shape && importedState.shape !== document.getElementById('shapeSelect').value) {
+        showModal("読込警告", `多面体モデルが異なりますが、表示を試みます。<br>現在のモデル: ${document.getElementById('shapeSelect').value}<br>読込モデル: ${importedState.shape}`);
+      }
       
       let isInitial = true;
       shapeData.vertices.forEach(v => { if (labelMemory[v.id] !== v.defaultLabel) isInitial = false; });
-      if (isInitial) {
+      if (isInitial && importedState.labels) {
         for (let id in importedState.labels) { if (id !== 'origin') labelMemory[id] = importedState.labels[id]; }
         initShapeUI(); return true;
       }
       
       const cLabels = shapeData.vertices.map(v => labelMemory[v.id]).sort();
-      const iLabels = Object.keys(importedState.labels).filter(k=>k!=='origin').map(k => importedState.labels[k]).sort();
+      const iLabels = Object.keys(importedState.labels||{}).filter(k=>k!=='origin').map(k => importedState.labels[k]).sort();
       if (cLabels.join(',') !== iLabels.join(',')) {
         let t = "<table border='1' style='width:100%; border-collapse:collapse; margin-top:10px;'><tr><th>現在のラベル</th><th>読込データ</th></tr>";
-        for(let i=0; i<Math.max(cLabels.length, iLabels.length); i++) t += `<tr><td>${cLabels[i]||''}</td><td>${iLabels[i]||''}</td></tr>`;
+        for(let i=0; i<Math.max(cLabels.length, iLabels.length); i++) t += `<tr><td style="padding:2px 4px;">${cLabels[i]||''}</td><td style="padding:2px 4px;">${iLabels[i]||''}</td></tr>`;
         showModal("ラベル不一致", "設定済みのラベルと読込データのラベルが異なります。比較できません。" + t + "</table>"); return false;
       }
       
       const cPairs = getPairList(labelMemory, shapeData.vertices);
-      const iPairs = getPairList(importedState.labels, shapeData.vertices); // 同じ図形なので頂点配列を流用
+      const iPairs = getPairList(importedState.labels, shapeData.vertices); 
       if (cPairs.join(',') !== iPairs.join(',')) {
-        showModal("対向ペア不一致", "ラベルは同一ですが、対立頂点の組み合わせが異なります。<br><br>現在:<br>" + cPairs.join('<br>') + "<br><br>読込:<br>" + iPairs.join('<br>')); return false;
+        showModal("対向ペア不一致 (警告)", "ラベルは一致していますが、対立頂点の組み合わせが異なります。<br>位置が対応しない可能性がありますが、読み込みます。<br><br>現在:<br>" + cPairs.join('<br>') + "<br><br>読込:<br>" + iPairs.join('<br>'));
       }
       return true;
     }
@@ -610,7 +649,7 @@
           try {
             const importedState = JSON.parse(stateScript.textContent);
             if(validateCompareData(importedState)) {
-              importedState._filename = file.name;
+              importedState._filename = file.name; importedState._hidden = false;
               compareDataList.push(importedState);
               renderCompareList(); updatePlot();
             }
@@ -620,6 +659,7 @@
     }
 
     function removeCompareData(idx) { compareDataList.splice(idx, 1); renderCompareList(); updatePlot(); }
+    function toggleCompareDataHidden(idx) { compareDataList[idx]._hidden = !compareDataList[idx]._hidden; renderCompareList(); updatePlot(); }
     function clearCompare() { compareDataList = []; renderCompareList(); updatePlot(); }
     
     function renderCompareList() {
@@ -628,39 +668,131 @@
         document.getElementById('clearCompareBtn').style.display = 'block';
         compareDataList.forEach((data, i) => {
           const colHex = document.getElementById(`compColor${i+1}`).value;
-          listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${colHex}; font-size:12px;">
-            <span>${data._filename||'読込データ'+(i+1)}</span>
-            <button class="secondary-btn" style="padding:2px 6px; background:#aa3333;" onclick="removeCompareData(${i})">×</button>
+          const isH = data._hidden;
+          listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${isH?'#555':colHex}; font-size:12px; opacity:${isH?0.5:1};">
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${data._filename||'読込データ'+(i+1)}</span>
+            <div style="display:flex; gap:4px;">
+              <button class="help-btn-small" style="background:${isH?'#aa3333':'#33aa33'}" onclick="toggleCompareDataHidden(${i})">👁</button>
+              <button class="help-btn-small" style="background:#aa3333;" onclick="removeCompareData(${i})">×</button>
+            </div>
           </div>`;
         });
       } else { document.getElementById('clearCompareBtn').style.display = 'none'; }
     }
 
+    // --- データ出力・読込 (JSON/CSV) ---
+    function exportData(format) {
+      const genre = document.getElementById('metaGenre').value;
+      const name = document.getElementById('metaName').value;
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      
+      let filename = prompt(`保存する${format.toUpperCase()}ファイル名を入力`, `eval_data_${name||'untitiled'}.${format}`);
+      if (!filename) return; if (!filename.endsWith(`.${format}`)) filename += `.${format}`;
+
+      if (format === 'json') {
+        const exportObj = {
+          genre: genre, name: name, originLabel: labelMemory['origin'] || '',
+          data: activeVerts.map(v => ({ label: labelMemory[v.id], score: scoreMemory[v.id] }))
+        };
+        const blob = new Blob([JSON.stringify(exportObj, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+      } else if (format === 'csv') {
+        let headers = ['ジャンル', '対象名', '中心ラベル'];
+        let rows = [genre, name, labelMemory['origin'] || ''];
+        activeVerts.forEach((v, i) => { headers.push(`ラベル${i+1}`, `スコア${i+1}`); rows.push(labelMemory[v.id], scoreMemory[v.id]); });
+        
+        // Excelで文字化けしないようBOM付きUTF-8
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const csvContent = headers.join(',') + '\n' + rows.join(',');
+        const blob = new Blob([bom, csvContent], {type: 'text/csv;charset=utf-8'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+      }
+    }
+
+    function importData(e, format) {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const text = event.target.result;
+          let importedLabels = {}; let importedScores = {};
+          let g = '', n = '', o = '';
+
+          if (format === 'json') {
+            const jData = JSON.parse(text);
+            g = jData.genre||''; n = jData.targetName||jData.name||''; o = jData.originLabel||'';
+            if(jData.data) jData.data.forEach((item, i) => { importedLabels[`v${i}`] = item.label; importedScores[`v${i}`] = item.score; });
+          } else if (format === 'csv') {
+            const lines = text.split('\n'); if(lines.length < 2) throw new Error();
+            const vals = lines[1].split(',');
+            g = vals[0]||''; n = vals[1]||''; o = vals[2]||'';
+            let vIdx = 0;
+            for(let i=3; i<vals.length; i+=2) {
+              if(vals[i]) { importedLabels[`v${vIdx}`] = vals[i]; importedScores[`v${vIdx}`] = parseFloat(vals[i+1])||0; vIdx++; }
+            }
+          }
+          
+          const fakeState = { labels: { origin: o, ...importedLabels }, scores: importedScores };
+          if(validateCompareData(fakeState)) { // 比較と同じロジックで検証して上書き
+            document.getElementById('metaGenre').value = g; document.getElementById('metaName').value = n;
+            for (let id in fakeState.scores) { if (scoreMemory[id]!==undefined) scoreMemory[id] = fakeState.scores[id]; }
+            saveMemAndPlot(); alert('データを読み込みました。');
+          }
+        } catch(err) { alert('読み込みに失敗しました。フォーマットが正しいか確認してください。'); }
+      }; reader.readAsText(file); e.target.value = '';
+    }
+
     // --- 3D 描画関連 ---
+    function getConvexHullIndices2D(points3D, vecU, vecV) {
+      if (points3D.length <= 3) return points3D.map((_, i) => i);
+      const pts = points3D.map((p, i) => ({ index: i, u: p.x*vecU.u + p.z*vecU.v, v: p.x*vecV.u + p.z*vecV.v }));
+      pts.sort((a,b) => a.u!==b.u ? a.u-b.u : a.v-b.v);
+      const cross = (o, a, b) => (a.u-o.u)*(b.v-o.v) - (a.v-o.v)*(b.u-o.u);
+      const lower = []; for(let i=0; i<pts.length; i++) { while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i])<=0) lower.pop(); lower.push(pts[i]); }
+      const upper = []; for(let i=pts.length-1; i>=0; i--) { while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i])<=0) upper.pop(); upper.push(pts[i]); }
+      lower.pop(); upper.pop(); return lower.concat(upper).map(p=>p.index);
+    }
+
+    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group) {
+      if(vec3Array.length < 3) {
+        if(vec3Array.length===2) { // 2点間の直線
+          const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute([vec3Array[0].x,vec3Array[0].y,vec3Array[0].z, vec3Array[1].x,vec3Array[1].y,vec3Array[1].z], 3));
+          group.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+        }
+        return;
+      }
+      
+      if(isCurrentFlatMode() || vec3Array.length === 3) {
+        const hullIdx = getConvexHullIndices2D(vec3Array, {u:1,v:0}, {u:0,v:1});
+        const shape = new THREE.Shape();
+        shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
+        for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
+        const geo = new THREE.ShapeGeometry(shape); geo.rotateX(Math.PI/2); 
+        group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
+        
+        const lineGeo = new THREE.BufferGeometry(); const lp = [];
+        hullIdx.forEach(idx => lp.push(vec3Array[idx].x, vec3Array[idx].y, vec3Array[idx].z));
+        lp.push(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].y, vec3Array[hullIdx[0]].z);
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+        group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+      } else {
+        try {
+          const cg = new THREE.ConvexGeometry(vec3Array);
+          group.add(new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
+          group.add(new THREE.LineSegments(new THREE.EdgesGeometry(cg), new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+        } catch(e) {
+          // Convex化失敗時(ほぼ平面など)のフォールバック
+          const fallbackGeo = new THREE.BufferGeometry(); const lp = [];
+          vec3Array.forEach(p=>lp.push(p.x,p.y,p.z)); fallbackGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp,3));
+          group.add(new THREE.Points(fallbackGeo, new THREE.PointsMaterial({color:colorHex, size:0.05})));
+        }
+      }
+    }
+
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
-      if(activeVerts.length < 3) return;
-      
-      const isFlat = isCurrentFlatMode();
-      const posArr = [], innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
-      innerP.forEach(p => posArr.push(p.x, p.y, p.z));
-      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
-      
-      let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-      if(isFlat || innerP.length === 3) { // 2D輪郭
-        const hullIdx = getConvexHullIndices2D(innerP, {u:1,v:0}, {u:0,v:1}); // Z=0前提の簡易処理
-        const lineGeo = new THREE.BufferGeometry(); const lp = [];
-        hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
-        lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
-        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
-        wireframeGroup.add(new THREE.Line(lineGeo, finalEdgesMat));
-      } else { // 3D Convex
-        try {
-          const cg = new THREE.ConvexGeometry(innerP);
-          wireframeGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(cg), finalEdgesMat));
-        } catch(e) {}
-      }
+      buildDynamicMesh3D(activeVerts.map(v => new THREE.Vector3(...v.v)), 0x555555, 0.0, 0.5, wireframeGroup); // ベースは透明で線のみ
     }
 
     function createTextSprite(message, color, scaleFactor, alwaysOnTop = false) {
@@ -689,51 +821,12 @@
       return sprite;
     }
 
-    function getConvexHullIndices2D(points3D, vecU, vecV) {
-      if (points3D.length <= 3) return points3D.map((_, i) => i);
-      const pts = points3D.map((p, i) => ({ index: i, u: p.x*vecU.u + p.z*vecU.v, v: p.x*vecV.u + p.z*vecV.v }));
-      pts.sort((a,b) => a.u!==b.u ? a.u-b.u : a.v-b.v);
-      const cross = (o, a, b) => (a.u-o.u)*(b.v-o.v) - (a.v-o.v)*(b.u-o.u);
-      const lower = []; for(let i=0; i<pts.length; i++) { while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i])<=0) lower.pop(); lower.push(pts[i]); }
-      const upper = []; for(let i=pts.length-1; i>=0; i--) { while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i])<=0) upper.pop(); upper.push(pts[i]); }
-      lower.pop(); upper.pop(); return lower.concat(upper).map(p=>p.index);
-    }
-
-    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group) {
-      if(vec3Array.length < 3) return;
-      const isFlat = isCurrentFlatMode();
-      
-      if(isFlat || vec3Array.length === 3) {
-        // 2D平面化 (X-Z平面近似)
-        const hullIdx = getConvexHullIndices2D(vec3Array, {u:1,v:0}, {u:0,v:1});
-        const shape = new THREE.Shape();
-        shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
-        for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
-        const geo = new THREE.ShapeGeometry(shape);
-        geo.rotateX(Math.PI/2); // Y軸が上になるように
-        
-        // スコアによるYの変動を手動適用
-        const pos = geo.attributes.position;
-        // 面の描画
-        group.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
-        
-        // 輪郭線
-        const lineGeo = new THREE.BufferGeometry(); const lp = [];
-        hullIdx.forEach(idx => lp.push(vec3Array[idx].x, vec3Array[idx].y, vec3Array[idx].z));
-        lp.push(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].y, vec3Array[hullIdx[0]].z);
-        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
-        group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
-      } else {
-        // 3D凸包
-        try {
-          const cg = new THREE.ConvexGeometry(vec3Array);
-          group.add(new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: faceOp, side: THREE.DoubleSide, depthWrite: false })));
-          group.add(new THREE.LineSegments(new THREE.EdgesGeometry(cg), new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
-        } catch(e) {}
-      }
-    }
-
     function updatePlot() {
+      // HUDの更新
+      const gEl = document.getElementById('metaGenre'), nEl = document.getElementById('metaName');
+      document.getElementById('hud-genre').innerText = gEl ? gEl.value : '';
+      document.getElementById('hud-name').innerText = nEl ? nEl.value : '';
+
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       const P_vecs = []; let sumX=0, sumY=0, sumZ=0;
       
@@ -763,6 +856,7 @@
       // 比較データ描画
       const compP_vecs_list = []; const compCentroids = [];
       compareDataList.forEach((cData, i) => {
+        if (cData._hidden) return; // 非表示スキップ
         const cv = []; let cSumX=0, cSumY=0, cSumZ=0;
         activeVerts.forEach(vert => {
           const lName = labelMemory[vert.id] || vert.defaultLabel; let cScore = 0;
@@ -771,14 +865,14 @@
           const px=vert.v[0]*cScore, py=vert.v[1]*cScore, pz=vert.v[2]*cScore;
           cv.push(new THREE.Vector3(px,py,pz)); cSumX+=px; cSumY+=py; cSumZ+=pz;
         });
-        compP_vecs_list.push(cv);
+        compP_vecs_list.push({ vecs: cv, index: i });
         
         let ccx = cSumX/count, ccy = cSumY/count, ccz = cSumZ/count;
         if(enhanceCheck && enhanceCheck.checked) {
           ccx*=count; ccy*=count; ccz*=count; const d=Math.sqrt(ccx*ccx+ccy*ccy+ccz*ccz);
           if(d>1.2) { ccx=(ccx/d)*1.2; ccy=(ccy/d)*1.2; ccz=(ccz/d)*1.2; }
         }
-        compCentroids.push({x:ccx, y:ccy, z:ccz});
+        compCentroids.push({x:ccx, y:ccy, z:ccz, index: i});
         
         const colHex = document.getElementById(`compColor${i+1}`).value;
         buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup);
@@ -805,10 +899,18 @@
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
 
+      // 2D HUDテキスト描画
+      const gText = document.getElementById('metaGenre').value, nText = document.getElementById('metaName').value;
+      if(gText || nText) {
+        ctx.fillStyle = '#00ffcc'; ctx.font = '10px sans-serif'; ctx.textAlign='left'; ctx.fillText(gText, 5, 12);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.fillText(nText, 5, 28);
+      }
+
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
+      if(activeVerts.length < 2) return;
 
       const flatMode = isCurrentFlatMode(); let U, V;
-      if (flatMode) { U = new THREE.Vector3(1,0,0); V = new THREE.Vector3(0,0,1); } 
+      if (flatMode || activeVerts.length<=3) { U = new THREE.Vector3(1,0,0); V = new THREE.Vector3(0,0,1); } 
       else {
         const viewId = document.getElementById('planeSelect').value; const viewVert = shapeData.vertices.find(v=>v.id===viewId);
         if(!viewVert) return;
@@ -819,16 +921,7 @@
       const projectObj = (obj) => ({ u: cx+(obj.x*U.x+obj.y*U.y+obj.z*U.z)*scale, v: cy+(obj.x*V.x+obj.y*V.y+obj.z*V.z)*scale });
       const basePoints2D = activeVerts.map((v,i) => { const p=projectObj({x:v.v[0],y:v.v[1],z:v.v[2]}); return {index:i, u:p.u, v:p.v}; });
       
-      const getConvexHullIndices = (pts) => {
-        if(pts.length<=3) return pts.map(p=>p.index);
-        const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
-        const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
-        const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
-        const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
-        lower.pop(); upper.pop(); return lower.concat(upper).map(p=>p.index);
-      };
-
-      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices(basePoints2D);
+      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices2D(activeVerts.map(v=>new THREE.Vector3(...v.v)), U, V);
 
       // 外枠ガイド
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
@@ -836,10 +929,10 @@
       ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
 
       // 比較描画
-      compP_vecs_list.forEach((compP, i) => {
-        const cHex = document.getElementById(`compColor${i+1}`).value;
+      compP_vecs_list.forEach((compData) => {
+        const cHex = document.getElementById(`compColor${compData.index+1}`).value;
         ctx.fillStyle=hexToRgba(cHex, fOpacity*0.5); ctx.strokeStyle=hexToRgba(cHex, lOpacity); ctx.lineWidth=2; ctx.beginPath();
-        perimIdx.forEach((idx,j)=>{ const p=projectObj(compP[idx]); if(j===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
+        perimIdx.forEach((idx,j)=>{ const p=projectObj(compData.vecs[idx]); if(j===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
         ctx.closePath(); ctx.fill(); ctx.stroke();
       });
 
@@ -862,8 +955,8 @@
       const oProj = projectObj({x:0,y:0,z:0}); ctx.font='Bold 14px sans-serif'; ctx.fillStyle=mainHex; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText("●", oProj.u, oProj.v);
       if(labelMemory['origin']){ ctx.font='12px sans-serif'; ctx.textAlign='left'; ctx.fillText(" "+labelMemory['origin'], oProj.u+6, oProj.v+1); }
 
-      compCentroids.forEach((cp, i) => {
-        const cHex = document.getElementById(`compColor${i+1}`).value; const cpProj=projectObj(cp);
+      compCentroids.forEach((cp) => {
+        const cHex = document.getElementById(`compColor${cp.index+1}`).value; const cpProj=projectObj(cp);
         ctx.fillStyle=hexToRgba(cHex, 0.4); ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 10, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle=cHex; ctx.beginPath(); ctx.arc(cpProj.u, cpProj.v, 5, 0, Math.PI*2); ctx.fill();
       });
@@ -883,7 +976,8 @@
         for(const v of activeVerts) {
           ps.value=v.id; updatePlot(); await new Promise(r=>setTimeout(r,100));
           const a=document.createElement('a'); a.href=cvs.toDataURL("image/jpeg", 1.0);
-          a.download=`2D_${(labelMemory[v.id]||v.name).replace(/\//g,'_')}_projection.jpg`; a.click();
+          const safeLabel = (labelMemory[v.id]||v.name).replace(/\//g,'_');
+          a.download=`2D_${safeLabel}_projection.jpg`; a.click();
           await new Promise(r=>setTimeout(r,600));
         }
         ps.value=orig; updatePlot();
@@ -901,11 +995,14 @@
 
       let script = document.getElementById('save-state') || document.createElement('script'); script.id='save-state'; script.type='application/json'; document.head.appendChild(script);
       const stateObj = {
+        metaGenre: document.getElementById('metaGenre').value, metaName: document.getElementById('metaName').value,
         shape: document.getElementById('shapeSelect').value, customVertices: document.getElementById('customVertices').value,
         is2DFlat: (document.getElementById('flatPolygonToggle')||{}).checked||false, enhanceMovement: (document.getElementById('enhanceMovement')||{}).checked||false,
         mainColor: document.getElementById('mainColor').value, faceOpacity: document.getElementById('faceOpacity').value, lineOpacity: document.getElementById('lineOpacity').value,
         compColor1: document.getElementById('compColor1').value, compColor2: document.getElementById('compColor2').value, compColor3: document.getElementById('compColor3').value, compColor4: document.getElementById('compColor4').value,
-        labels: labelMemory, scores: scoreMemory, hiddenVertices: hiddenVertices, memoText: document.getElementById('memoInput').value, photos: photosList, compareDataList: compareDataList, isViewerMode: isViewer
+        labels: labelMemory, scores: scoreMemory, hiddenVertices: hiddenVertices, memoText: document.getElementById('memoInput').value, photos: photosList,
+        compareDataList: [], // 保存時は比較データを空にする
+        isViewerMode: isViewer
       };
       script.textContent = JSON.stringify(stateObj); return stateObj;
     }
@@ -932,6 +1029,8 @@
           const state = JSON.parse(script.textContent);
           if (state.isViewerMode) { document.body.classList.add('viewer-mode'); document.getElementById('lockScores').checked=true; document.getElementById('memoInput').disabled=true; if(state.photos&&state.photos.length>0)document.getElementById('viewer-album-btn').style.display='flex'; }
           document.getElementById('shapeSelect').value=state.shape;
+          if(state.metaGenre!==undefined&&document.getElementById('metaGenre'))document.getElementById('metaGenre').value=state.metaGenre;
+          if(state.metaName!==undefined&&document.getElementById('metaName'))document.getElementById('metaName').value=state.metaName;
           if(state.customVertices)document.getElementById('customVertices').value=state.customVertices;
           if(state.is2DFlat!==undefined&&document.getElementById('flatPolygonToggle'))document.getElementById('flatPolygonToggle').checked=state.is2DFlat;
           if(state.enhanceMovement!==undefined&&document.getElementById('enhanceMovement'))document.getElementById('enhanceMovement').checked=state.enhanceMovement;
@@ -942,7 +1041,6 @@
           labelMemory=state.labels||labelMemory; scoreMemory=state.scores||scoreMemory; hiddenVertices=state.hiddenVertices||{};
           if(state.memoText!==undefined)document.getElementById('memoInput').value=state.memoText;
           if(state.photos)photosList=state.photos;
-          if(state.compareDataList) { compareDataList=state.compareDataList; renderCompareList(); }
         } catch(e){}
       }
       document.getElementById('photoCount').innerText=photosList.length;
