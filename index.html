@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.6</title>
+  <title>立体評価チャート・プロトタイプ v25.7</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
+    
+    /* 原因3対策: 100vhの代わりに100dvhを使用し、スマホのアドレスバー出し入れによる押し出しを防ぐ */
+    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100dvh; background: #1a1a1a; color: #fff; overflow: hidden; }
     
     /* サイドバー類 */
     #sidebar, #right-sidebar {
-      width: 350px; min-width: 250px; height: 100vh; background: #2a2a2a; 
+      width: 350px; min-width: 250px; height: 100%; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; overflow-y: auto; position: relative;
     }
     #sidebar { padding: 15px 20px calc(40px + env(safe-area-inset-bottom)) 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); }
@@ -28,18 +30,16 @@
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
     body.is-resizing #drag-overlay { display: block; }
 
-    /* ★ 3Dビューポート (確実に領域を確保する強固な指定) ★ */
+    /* 3Dビューポート基本設計 */
     #viewport-container { 
-      flex: 1 1 0%; 
+      flex: 1; 
       position: relative; 
-      display: flex; 
-      flex-direction: column; 
-      height: 100vh;
-      min-height: 250px;
+      display: block; /* Flexbox由来の高さ計算バグを避けるためblock化 */
+      height: 100%;
     }
     #viewport { 
-      flex: 1 1 0%; 
-      position: relative; 
+      position: absolute; 
+      top: 0; left: 0; right: 0; bottom: 0;
       width: 100%; 
       height: 100%; 
     }
@@ -81,7 +81,7 @@
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    /* 2Dキャンバス 350px */
+    /* 2Dキャンバス */
     .canvas-container { position: relative; width: 100%; height: 350px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
@@ -111,24 +111,42 @@
     #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
     #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
     
-    /* ★ スマホ縦UI用 強制レイアウト ★ */
+    /* ★★★ スマホ縦UI用 強制固定レイアウト (バグ対応策 1, 2, 6, 9, 10) ★★★ */
     @media (max-width: 900px) {
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
-      #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
       
-      /* ビューポート：絶対に余白を埋めさせ、高さ0にならないようにする */
+      #mobile-nav { display: flex !important; order: 1; flex: 0 0 auto; }
+      
+      /* 原因1, 9対策: flex-basisで領域を死守し、min-heightも指定。display: blockで挙動を安定化。 */
+      /* 原因6対策: z-indexで絶対に他の要素の裏に行かないようにする。 */
       #viewport-container { 
-        display: flex !important; 
+        display: block !important; 
         order: 2; 
-        flex: 1 1 0% !important; 
-        height: auto !important;
-        min-height: 250px !important; 
+        flex: 1 1 300px !important; 
+        min-height: 300px !important; 
+        height: 100% !important;
+        position: relative;
+        z-index: 5; 
       }
       
-      #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
+      /* 原因2, 10対策: コンテナの四隅に強制的に張り付かせる */
+      #viewport {
+        position: absolute !important;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100% !important; 
+        height: 100% !important;
+      }
+      #viewport canvas {
+        position: absolute !important;
+        top: 0; left: 0;
+        width: 100% !important; 
+        height: 100% !important;
+        object-fit: contain; /* 原因10対策 */
+      }
       
-      /* パネル：flexboxで潰されないように flex: 0 0 [高さ] で固定する */
+      #mobile-resizer { display: flex !important; order: 3; flex: 0 0 auto; }
+      
       #sidebar, #right-sidebar { 
         order: 4; 
         width: 100% !important; 
@@ -182,7 +200,7 @@
 
   <script>
     // ==========================================
-    // ☁️ クラウド連携設定 (ここにハードコード)
+    // ☁️ クラウド連携設定
     // ==========================================
     const CONFIG = {
       SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      
@@ -215,7 +233,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.6</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.7</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -431,7 +449,6 @@
     };
     window.addEventListener('pointerup', stopResize); window.addEventListener('pointercancel', stopResize);
 
-    // ★ タブ切り替え時のリサイズ反映を堅牢化 ★
     function setMobileTab(tabName) {
       document.body.className = document.body.className.replace(/tab-\w+/g, '');
       if (document.body.classList.contains('viewer-mode')) document.body.classList.add('viewer-mode'); 
@@ -439,11 +456,6 @@
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
       const activeBtn = document.querySelector(`.nav-btn[onclick="setMobileTab('${tabName}')"]`);
       if (activeBtn) activeBtn.classList.add('active');
-      
-      // DOMの反映を待ってから複数回リサイズを呼び出す
-      setTimeout(onWindowResize, 10); 
-      setTimeout(onWindowResize, 100); 
-      setTimeout(onWindowResize, 300);
     }
     
     function toggleFlatModeMobile() { const flatEl = document.getElementById('flatPolygonToggle'); if (flatEl) { flatEl.checked = !flatEl.checked; initShapeUI(); } }
@@ -559,7 +571,6 @@
 
     // --- 頂点の再配置 ---
     function updateActiveCoordinates() {
-      // 一旦マスター座標にリセット
       shapeData.vertices.forEach(v => {
         if(v.base_v) v.v = [...v.base_v];
       });
@@ -621,10 +632,14 @@
       assignPairColors(activeVerts);
     }
 
-    // --- Three.js セットアップ ---
+    // --- ★ Three.js セットアップ (原因8, 7対策) ★ ---
     const container = document.getElementById('viewport'); container.innerHTML = ''; 
     const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000); camera.position.set(2.5, 2, 3);
-    const renderer = new THREE.WebGLRenderer({ antialias: true }); container.appendChild(renderer.domElement);
+    // 原因8対策: alpha:true でCSSの背景色を透過させ、レンダラ側の黒塗りを防ぐ
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); 
+    // 原因7対策: 高解像度ディスプレイでの描画ピクセル消失を防ぐ
+    renderer.setPixelRatio(window.devicePixelRatio); 
+    container.appendChild(renderer.domElement);
     const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8); dirLight.position.set(5, 10, 7); scene.add(dirLight);
@@ -977,7 +992,6 @@
       }
     }
 
-
     // --- 3D 描画 ---
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
@@ -1317,16 +1331,27 @@
       }
     }
 
-    // ★ リサイズの安定化 ★
+    // ★ 原因4, 5対策: リサイズの完全安定化 (ResizeObserverと自己修復) ★
     function onWindowResize() { 
-      // 完全に潰れている時は何もしない (エラー回避)
-      if(container.clientWidth === 0 || container.clientHeight === 0) return;
-      camera.aspect = container.clientWidth / container.clientHeight; 
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      // 幅・高さが0(潰れている・非表示)の時はCanvasを更新しない。少し待って再トライ
+      if(cw === 0 || ch === 0) {
+        setTimeout(onWindowResize, 100);
+        return;
+      }
+      camera.aspect = cw / ch; 
       camera.updateProjectionMatrix(); 
-      renderer.setSize(container.clientWidth, container.clientHeight); 
+      renderer.setSize(cw, ch); 
       updatePlot(); 
     }
     window.addEventListener('resize', onWindowResize);
+    
+    // レイアウト変化を確実にキャッチする
+    const resizeObserver = new ResizeObserver(() => {
+      onWindowResize();
+    });
+    resizeObserver.observe(container);
 
     // --- エクスポート ---
     function prepareStateScript(isViewer) {
