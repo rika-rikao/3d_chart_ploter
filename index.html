@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v23.3</title>
+  <title>立体評価チャート・プロトタイプ v24.0</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,7 +32,6 @@
     #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
     #viewport { flex: 1; position: relative; }
 
-    /* 画面左上の凡例（固定表示） */
     #viewport-legend {
       position: absolute;
       top: 15px;
@@ -59,9 +58,9 @@
     
     input[type="range"] { width: 100%; height: 20px; cursor: pointer; }
     input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
-    select, input[type="text"], input[type="number"], textarea { padding: 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 14px; width: 100%; }
+    select, input[type="text"], input[type="number"], input[type="password"], textarea { padding: 8px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 14px; width: 100%; }
     input[type="color"] { padding: 0; border: 1px solid #555; border-radius: 4px; height: 28px; width: 40px; cursor: pointer; background: #333; }
-    input[type="text"]:disabled { opacity: 0.5; color: #aaa; cursor: not-allowed; border-color: #444; }
+    input[type="text"]:disabled, input[type="password"]:disabled { opacity: 0.5; color: #aaa; cursor: not-allowed; border-color: #444; }
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
@@ -86,7 +85,7 @@
     .photo-card img { width: 100%; height: 100%; object-fit: cover; }
     .photo-del-btn { position: absolute; top: 4px; right: 4px; background: rgba(255,0,0,0.8); color: #fff; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
 
-    /* モバイル用メニューバー (常時表示) */
+    /* モバイル用メニューバー */
     #mobile-nav { display: none; background: #111; padding: 6px 4px; border-bottom: 1px solid #444; width: 100%; flex-direction: row; justify-content: space-between; gap: 4px; position: sticky; top: 0; z-index: 1000; }
     .nav-btn { background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 6px 2px; font-size: 11px; cursor: pointer; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; line-height: 1.1; text-align: center; }
     .nav-btn .icon { font-size: 16px; }
@@ -121,6 +120,8 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/ConvexHull.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
+  <!-- Supabase CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- PWA設定 -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
@@ -140,11 +141,11 @@
 <body class="tab-config">
   <div id="drag-overlay"></div>
 
-  <!-- 警告モーダル -->
+  <!-- 警告・汎用モーダル -->
   <div id="alert-modal" class="overlay-modal">
     <div class="modal-box">
-      <h3 id="alert-title" style="color:#ff5555; margin-bottom:15px;">警告</h3>
-      <div id="alert-body" style="font-size:14px; margin-bottom:20px; line-height:1.5;"></div>
+      <h3 id="alert-title" style="color:#00ffcc; margin-bottom:15px;">メッセージ</h3>
+      <div id="alert-body" style="font-size:14px; margin-bottom:20px; line-height:1.6;"></div>
       <div style="text-align:right;">
         <button class="secondary-btn" onclick="document.getElementById('alert-modal').style.display='none'">閉じる</button>
       </div>
@@ -162,7 +163,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v23.3</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v24.0</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -174,7 +175,7 @@
       
       <div class="control-group edit-only">
         <div class="row-group" style="align-items: flex-end;">
-          <label>多面体モデル選択</label>
+          <label>マスター多面体モデル選択</label>
           <label style="display:flex; align-items:center; gap:4px; font-size:12px; color:#00ffcc; cursor:pointer; font-weight:bold;">
             <input type="checkbox" id="flatPolygonToggle" onchange="initShapeUI()"> 平面(2D)化
           </label>
@@ -198,10 +199,44 @@
         <summary>データ比較機能 (最大4つ)</summary>
         <div class="section-content">
           <div class="row-group edit-only">
-            <button class="secondary-btn" style="flex:1;" onclick="document.getElementById('compareInput').click()">📁 データ読込 (HTML/JSON/CSV)</button>
+            <button class="secondary-btn" style="flex:1;" onclick="document.getElementById('compareInput').click()">📁 ローカルデータ読込 (HTML/JSON/CSV)</button>
             <input type="file" id="compareInput" accept=".html,.json,.csv" style="display:none;" onchange="handleCompareFile(event)">
           </div>
           <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
+      </details>
+
+      <details id="det-cloud">
+        <summary>☁️ クラウド連携 (Supabase & AI)</summary>
+        <div class="section-content edit-only">
+          <div class="control-group">
+            <label>Supabase URL</label>
+            <input type="text" id="sb_url" placeholder="https://xxx.supabase.co" onchange="saveCloudConfig()">
+            <label>Supabase Anon Key</label>
+            <input type="password" id="sb_key" placeholder="eyJ..." onchange="saveCloudConfig()">
+            <label>Gemini API Key</label>
+            <input type="password" id="gemini_key" placeholder="AIzaSy..." onchange="saveCloudConfig()">
+          </div>
+          <div class="row-group">
+            <button class="primary-btn" onclick="saveToSupabase()" style="background:#55ffaa;">☁️ 現在のデータをクラウドへ送信</button>
+          </div>
+          <hr style="border:0; border-top:1px solid #444;">
+          <div class="control-group">
+            <label style="color:#00ffcc;">クラウドから平均データをロードして比較</label>
+            <div class="row-group" style="gap:4px;">
+              <input type="text" id="cloud_search_genre" placeholder="ジャンル" list="dl_genres" style="flex:1;">
+              <input type="text" id="cloud_search_target" placeholder="対象名" list="dl_targets" style="flex:1;">
+            </div>
+            <datalist id="dl_genres"></datalist>
+            <datalist id="dl_targets"></datalist>
+            <div class="row-group">
+              <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
+              <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
+            </div>
+            <div class="row-group" style="margin-top:5px;">
+              <button class="secondary-btn" onclick="analyzeCloudMemos()" style="background:#8a2be2; color:#fff; border-color:#9b5de5;">🤖 ロードしたメモをAIで分析</button>
+            </div>
+          </div>
         </div>
       </details>
 
@@ -326,18 +361,11 @@
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
     function showModal(title, bodyHtml) {
-      document.getElementById('alert-title').innerText = title;
+      const titleEl = document.getElementById('alert-title');
+      titleEl.innerText = title;
+      titleEl.style.color = title.includes("エラー") ? "#ff5555" : "#00ffcc";
       document.getElementById('alert-body').innerHTML = bodyHtml;
       document.getElementById('alert-modal').style.display = 'flex';
-    }
-
-    // --- 角度順で外周を求める共通関数（星型凹みの維持に必要） ---
-    function getRadialIndices2D(activeVerts) {
-      const pts = activeVerts.map((vert, i) => {
-        return { index: i, angle: Math.atan2(vert.v[2], vert.v[0]) };
-      });
-      pts.sort((a, b) => a.angle - b.angle);
-      return pts.map(p => p.index);
     }
 
     // リサイズ制御
@@ -422,26 +450,9 @@
     function generateCustomShape(n, is2DFlat = false) {
       let points = [], faces = [], explicitEdges = null;
       if (is2DFlat || n < 4) {
-        // UI上で隣接するペア(0と1、2と3...)が、円周上で対角(180度反対)になるように配置
         explicitEdges = [];
-        const totalPairs = Math.ceil(n / 2);
-        for (let i = 0; i < n; i++) {
-          let pairIdx = Math.floor(i / 2);
-          let isSecond = (i % 2 !== 0);
-          let baseAngle = (2 * Math.PI * pairIdx) / totalPairs - Math.PI / 2;
-          if (isSecond) baseAngle += Math.PI; // 対向位置へ
-          points.push(new THREE.Vector3(Math.cos(baseAngle), 0, Math.sin(baseAngle)));
-        }
-        
-        if (n === 2) explicitEdges = [[0, 1]]; 
-        else {
-          // 2Dモデル用の明示的なエッジ(外周)を角度順に結んで定義
-          const ptsWithAngle = points.map((p, i) => ({ i, a: Math.atan2(p.z, p.x) }));
-          ptsWithAngle.sort((a, b) => a.a - b.a);
-          for (let k = 0; k < n; k++) {
-            explicitEdges.push([ptsWithAngle[k].i, ptsWithAngle[(k+1)%n].i]);
-          }
-        }
+        for (let i = 0; i < n; i++) { points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/n - Math.PI/2), 0, Math.sin((2*Math.PI*i)/n - Math.PI/2))); if (n > 2) explicitEdges.push([i, (i+1)%n]); }
+        if (n === 2) explicitEdges = [[0, 1]]; else for (let i = 1; i < n - 1; i++) faces.push([0, i, i+1]);
       } else {
         if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
         else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
@@ -485,6 +496,30 @@
           }
         }
       }
+    }
+
+    // --- 頂点の再配置(改修部分) ---
+    function updateActiveCoordinates() {
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      const n = activeVerts.length;
+      if (n < 2) return;
+
+      const is2DFlat = isCurrentFlatMode();
+      let tempShape;
+      if (is2DFlat) {
+        tempShape = generateCustomShape(n, true);
+      } else {
+        if (n === 4) tempShape = SHAPES.tetrahedron;
+        else if (n === 5) tempShape = SHAPES.bipyramid;
+        else if (n === 6) tempShape = SHAPES.octahedron;
+        else if (n === 8) tempShape = SHAPES.hexahedron;
+        else tempShape = generateCustomShape(n, false);
+      }
+      // アクティブな頂点に対し、理想形の座標を再割り当て
+      activeVerts.forEach((v, i) => {
+        v.v = [...tempShape.vertices[i].v];
+      });
+      assignPairColors(activeVerts);
     }
 
     // --- Three.js セットアップ ---
@@ -571,10 +606,17 @@
       });
 
       document.getElementById('planeSelect').disabled = isCurrentFlatMode();
-      toggleLock(); buildStatic3DShapes(); updatePlot();
+      toggleLock(); 
+      updateActiveCoordinates(); // アクティブな頂点数に合わせて再配置
+      buildStatic3DShapes(); 
+      updatePlot();
     }
 
-    function toggleVertexVisibility(id) { if(document.body.classList.contains('viewer-mode')) return; hiddenVertices[id] = !hiddenVertices[id]; initShapeUI(); }
+    function toggleVertexVisibility(id) { 
+      if(document.body.classList.contains('viewer-mode')) return; 
+      hiddenVertices[id] = !hiddenVertices[id]; 
+      initShapeUI(); // UIを再構築し、座標も再配置する
+    }
     function moveLabelUp(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id); }
     function moveLabelDown(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx < shapeData.vertices.length - 1) swapLabels(id, shapeData.vertices[idx+1].id); }
     function swapLabels(id1, id2) {
@@ -597,6 +639,7 @@
           const opt = document.getElementById(`opt_${v.id}`); if(opt) opt.innerText = `${labelMemory[v.id]} から見下ろす`;
         }
       });
+      updateActiveCoordinates(); // 念のため再配置
       updatePlot();
     }
 
@@ -609,7 +652,7 @@
     document.addEventListener('dragleave', (e) => { if(e.target.classList && e.target.classList.contains('drag-item')) e.target.classList.remove('drag-over'); });
     function handleDrop(e) { if(document.body.classList.contains('viewer-mode')) return; e.preventDefault(); e.currentTarget.classList.remove('drag-over'); const dropId = e.currentTarget.dataset.id; if (draggedId && draggedId !== dropId) swapLabels(draggedId, dropId); }
 
-    // --- データインポート ---
+    // --- ローカルデータインポート ---
     function validateCompareData(importedState) {
       let isInitial = true;
       shapeData.vertices.forEach(v => { if (labelMemory[v.id] !== v.defaultLabel) isInitial = false; });
@@ -640,7 +683,6 @@
       const reader = new FileReader();
       reader.onload = (event) => {
         const content = event.target.result; let importedState = null;
-        
         if (file.name.endsWith('.html')) {
           const doc = new DOMParser().parseFromString(content, "text/html");
           const stateScript = doc.getElementById('save-state');
@@ -656,18 +698,12 @@
             const headers = lines[0].split(',').map(s=>s.replace(/^"|"$/g, ''));
             const values = lines[1].split(',').map(s=>s.replace(/^"|"$/g, ''));
             const labels = {}; const scores = {}; let mG = '', mT = '';
-            
             let dataIdx = 0;
             if (headers.length > 0 && headers[0].toLowerCase() === 'genre') { mG = values[0]; dataIdx++; }
             if (headers.length > 1 && headers[1].toLowerCase() === 'targetname') { mT = values[1]; dataIdx++; }
-            
             const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
             activeVerts.forEach(v => {
-              if (dataIdx < headers.length) {
-                labels[v.id] = headers[dataIdx];
-                scores[v.id] = parseFloat(values[dataIdx]) || 0;
-                dataIdx++;
-              }
+              if (dataIdx < headers.length) { labels[v.id] = headers[dataIdx]; scores[v.id] = parseFloat(values[dataIdx]) || 0; dataIdx++; }
             });
             importedState = { labels, scores, metaData: { genre: mG, targetName: mT } };
           }
@@ -703,6 +739,127 @@
       }
     }
 
+    // --- クラウド・API連携 (新機能) ---
+    function saveCloudConfig() {
+      localStorage.setItem('sb_url', document.getElementById('sb_url').value);
+      localStorage.setItem('sb_key', document.getElementById('sb_key').value);
+      localStorage.setItem('gemini_key', document.getElementById('gemini_key').value);
+    }
+    function loadCloudConfig() {
+      if(document.getElementById('sb_url')) document.getElementById('sb_url').value = localStorage.getItem('sb_url') || '';
+      if(document.getElementById('sb_key')) document.getElementById('sb_key').value = localStorage.getItem('sb_key') || '';
+      if(document.getElementById('gemini_key')) document.getElementById('gemini_key').value = localStorage.getItem('gemini_key') || '';
+    }
+    function getSupabaseClient() {
+      const url = document.getElementById('sb_url').value;
+      const key = document.getElementById('sb_key').value;
+      if(!url || !key) { alert("SupabaseのURLとKeyを設定してください。"); return null; }
+      return supabase.createClient(url, key);
+    }
+
+    async function saveToSupabase() {
+      const sb = getSupabaseClient(); if(!sb) return;
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      const labelsData = activeVerts.map(v => ({ name: labelMemory[v.id], score: scoreMemory[v.id] }));
+      
+      const record = {
+        genre: metaData.genre,
+        target_name: metaData.targetName,
+        labels_data: labelsData,
+        memo: document.getElementById('memoInput').value,
+        created_at: new Date().toISOString()
+      };
+      
+      const { data, error } = await sb.from('eval_charts_data').insert([record]);
+      if(error) { showModal("保存エラー", error.message); }
+      else { showModal("送信完了", "クラウドへのデータ送信が完了しました。"); fetchCloudList(); }
+    }
+
+    async function fetchCloudList() {
+      const sb = getSupabaseClient(); if(!sb) return;
+      const { data, error } = await sb.from('eval_charts_data').select('genre, target_name');
+      if(error) { console.error(error); return; }
+      const genres = new Set(), targets = new Set();
+      data.forEach(d => { if(d.genre) genres.add(d.genre); if(d.target_name) targets.add(d.target_name); });
+      const dG = document.getElementById('dl_genres'); dG.innerHTML = '';
+      genres.forEach(g => dG.innerHTML += `<option value="${g}">`);
+      const dT = document.getElementById('dl_targets'); dT.innerHTML = '';
+      targets.forEach(t => dT.innerHTML += `<option value="${t}">`);
+    }
+
+    let currentCloudMemos = [];
+    async function loadCloudCompareData() {
+      if(compareDataList.length >= 4) { alert("比較データは最大4つまでです。"); return; }
+      const sb = getSupabaseClient(); if(!sb) return;
+      
+      const genre = document.getElementById('cloud_search_genre').value;
+      const target = document.getElementById('cloud_search_target').value;
+      let query = sb.from('eval_charts_data').select('*');
+      if(genre) query = query.eq('genre', genre);
+      if(target) query = query.eq('target_name', target);
+      
+      const { data, error } = await query;
+      if(error) { showModal("読込エラー", error.message); return; }
+      if(!data || data.length === 0) { alert("該当するデータがありません。"); return; }
+      
+      const labelSums = {}; const labelCounts = {};
+      currentCloudMemos = [];
+      data.forEach(row => {
+        if(row.memo && row.memo.trim()!=='') currentCloudMemos.push(row.memo);
+        if(Array.isArray(row.labels_data)) {
+          row.labels_data.forEach(ld => {
+            if(!labelSums[ld.name]) { labelSums[ld.name] = 0; labelCounts[ld.name] = 0; }
+            labelSums[ld.name] += ld.score;
+            labelCounts[ld.name] += 1;
+          });
+        }
+      });
+      
+      let mappedScores = {}; let mappedLabels = {};
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      activeVerts.forEach(v => {
+        const cLabel = labelMemory[v.id];
+        mappedLabels[v.id] = cLabel;
+        mappedScores[v.id] = (labelSums[cLabel] && labelCounts[cLabel] > 0) ? (labelSums[cLabel] / labelCounts[cLabel]) : 0;
+      });
+      
+      const importedState = {
+        labels: mappedLabels, scores: mappedScores,
+        metaData: { genre: genre||'All', targetName: (target||'All') + ` (平均 n=${data.length})` },
+        _filename: (target||'Cloud Data') + " (Avg)", hidden: false
+      };
+      
+      compareDataList.push(importedState);
+      renderCompareList(); updatePlot();
+      showModal("読込完了", `クラウドから ${data.length}件 のデータを取得・集計し、比較用に追加しました。<br>（AI分析に用いるメモ ${currentCloudMemos.length}件 を確保しました）`);
+    }
+
+    async function analyzeCloudMemos() {
+      if (currentCloudMemos.length === 0) { alert("分析するメモがありません。先にクラウドデータをロードしてください。"); return; }
+      const key = document.getElementById('gemini_key').value;
+      if (!key) { alert("Gemini API Keyを設定してください。"); return; }
+      
+      const prompt = `以下の複数のレビューメモを分析し、\n1. 全体的な傾向（平均的な意見）\n2. 好意的な意見の傾向\n3. 批判的または不満な意見の傾向\nをそれぞれ箇条書きで簡潔に要約してください。\n\n【レビューメモ】\n` 
+                   + currentCloudMemos.map((m,i) => `・メモ${i+1}: ${m}`).join('\n');
+      
+      showModal("AI分析中...", "Geminiによる分析を行っています。しばらくお待ちください...");
+      try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        if(data.error) throw new Error(data.error.message);
+        
+        const text = data.candidates[0].content.parts[0].text;
+        const htmlText = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        showModal("🤖 AI分析結果", htmlText);
+      } catch(e) {
+        showModal("AI分析エラー", "エラーが発生しました: " + e.message);
+      }
+    }
+
+
     // --- 3D 描画 ---
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
@@ -715,8 +872,7 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        // 角度順に外周を結ぶ
-        const hullIdx = getRadialIndices2D(activeVerts); 
+        const hullIdx = innerP.map((_, i) => i);
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -753,13 +909,11 @@
       return sprite;
     }
 
-    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group, activeVerts) {
+    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group) {
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // 角度順のインデックスを取得して星型（凹み）を正しくつなぐ
-        const hullIdx = getRadialIndices2D(activeVerts);
-        
+        const hullIdx = vec3Array.map((_, i) => i);
         const shape = new THREE.Shape();
         shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
         for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
@@ -804,7 +958,7 @@
       const faceOpacity = document.getElementById('faceOpacity')?parseFloat(document.getElementById('faceOpacity').value):0.4;
       const lineOpacity = document.getElementById('lineOpacity')?parseFloat(document.getElementById('lineOpacity').value):0.9;
 
-      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup, activeVerts);
+      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup);
 
       const compP_vecs_list = []; const compCentroids = [];
       compareDataList.forEach((cData, i) => {
@@ -827,13 +981,12 @@
         compCentroids.push({x:ccx, y:ccy, z:ccz});
         
         const colHex = document.getElementById(`compColor${i+1}`).value;
-        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup, activeVerts);
+        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup);
         const cpMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06,32,32), new THREE.MeshBasicMaterial({color:colHex, depthTest:false})); cpMesh.renderOrder=9999;
         cpMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,32,32), new THREE.MeshBasicMaterial({color:colHex, transparent:true, opacity:0.4, depthTest:false})));
         cpMesh.position.set(ccx, ccy, ccz); compareGroup.add(cpMesh);
       });
 
-      // 画面左上の固定凡例(オーバーレイ)を更新
       const legendEl = document.getElementById('viewport-legend');
       if (legendEl) {
         let legendHtml = '';
@@ -855,16 +1008,10 @@
           </div>`;
           hasContent = true;
         });
-        
-        if (hasContent) {
-          legendEl.innerHTML = legendHtml;
-          legendEl.style.display = 'block';
-        } else {
-          legendEl.style.display = 'none';
-        }
+        if (hasContent) { legendEl.innerHTML = legendHtml; legendEl.style.display = 'block'; }
+        else { legendEl.style.display = 'none'; }
       }
 
-      // 頂点ラベル・原点表示
       while(labelGroup.children.length > 0) { const c=labelGroup.children[0]; if(c.material.map)c.material.map.dispose(); c.material.dispose(); labelGroup.remove(c); }
       const sFactor = parseFloat(document.getElementById('labelSize').value);
       
@@ -874,22 +1021,6 @@
       });
 
       draw2DProjection(P_vecs, {x:cx,y:cy,z:cz}, compP_vecs_list, compCentroids, mainColorHex, faceOpacity, lineOpacity, activeVerts);
-    }
-
-    // --- 2D 投影用の凸包計算（3D視点投影用） ---
-    function getConvexHullIndices(pts) {
-      if(pts.length<=3) return pts.map(p=>p.index);
-      let allClose = true;
-      for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
-      if(allClose) return pts.map(p => p.index);
-
-      const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
-      const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
-      const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
-      const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
-      lower.pop(); upper.pop(); 
-      const hull = lower.concat(upper).map(p=>p.index);
-      return hull.length >= 3 ? hull : pts.map(p=>p.index);
     }
 
     function draw2DProjection(P_vecs, originPt, compP_vecs_list, compCentroids, mainHex, fOpacity, lOpacity, activeVerts) {
@@ -912,12 +1043,22 @@
       const projectObj = (obj) => ({ u: cx+(obj.x*U.x+obj.y*U.y+obj.z*U.z)*scale, v: cy+(obj.x*V.x+obj.y*V.y+obj.z*V.z)*scale });
       const basePoints2D = activeVerts.map((v,i) => { const p=projectObj({x:v.v[0],y:v.v[1],z:v.v[2]}); return {index:i, u:p.u, v:p.v}; });
       
-      let perimIdx;
-      if (flatMode || activeVerts.length <= 3) {
-        perimIdx = getRadialIndices2D(activeVerts); // 平面モデルの場合は角度順(星型維持)
-      } else {
-        perimIdx = getConvexHullIndices(basePoints2D); // 立体モデルの斜め投影の場合は凸包
-      }
+      const getConvexHullIndices = (pts) => {
+        if(pts.length<=3) return pts.map(p=>p.index);
+        let allClose = true;
+        for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
+        if(allClose) return pts.map(p => p.index);
+
+        const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
+        const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
+        const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
+        const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
+        lower.pop(); upper.pop(); 
+        const hull = lower.concat(upper).map(p=>p.index);
+        return hull.length >= 3 ? hull : pts.map(p=>p.index);
+      };
+
+      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices(basePoints2D);
 
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
       perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
@@ -959,13 +1100,11 @@
       ctx.fillStyle='rgba(255,255,0,0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
 
-      // メタ情報 ＆ 凡例
       let legendY = 10;
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
       ctx.fillText(mText, 10, legendY);
       legendY += 22; ctx.font = '11px sans-serif';
-      
       compareDataList.forEach((cData, i) => {
         if(cData.hidden) return;
         const cHex = document.getElementById(`compColor${i+1}`).value;
@@ -1017,10 +1156,10 @@
     }
 
     function exportHTML() {
-      const origCompare = [...compareDataList]; compareDataList = []; // 保存用には自身のみ
+      const origCompare = [...compareDataList]; compareDataList = [];
       prepareStateScript(false); 
       const blob=new Blob(["<!DOCTYPE html>\n"+document.documentElement.outerHTML],{type:'text/html;charset=utf-8'});
-      compareDataList = origCompare; prepareStateScript(false); // 復元
+      compareDataList = origCompare; prepareStateScript(false);
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); 
       let fn=prompt("保存ファイル名 (HTML)", (metaData.targetName||"data") + ".html");
       if(!fn)return; if(!fn.endsWith('.html'))fn+='.html'; a.download=fn; a.click();
@@ -1054,6 +1193,7 @@
     }
 
     function loadSavedState() {
+      loadCloudConfig();
       const sMemo=localStorage.getItem('eval_chart_memo'); if(sMemo!==null)document.getElementById('memoInput').value=sMemo;
       const sPhotos=localStorage.getItem('eval_chart_photos'); if(sPhotos!==null)try{photosList=JSON.parse(sPhotos);}catch(e){}
       const script=document.getElementById('save-state');
@@ -1080,6 +1220,11 @@
       toggleCustomConfig(); initShapeUI();
       if(document.body.classList.contains('viewer-mode')) document.querySelectorAll('input[type="text"]').forEach(el=>el.disabled=true);
       if(window.innerWidth<=900) setMobileTab('config'); setTimeout(onWindowResize,100);
+      
+      // サジェスト用のリスト取得を非同期で実行
+      if (document.getElementById('sb_url').value && document.getElementById('sb_key').value) {
+        fetchCloudList();
+      }
     }
 
     loadSavedState();
