@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.0</title>
+  <title>立体評価チャート・プロトタイプ v25.1</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.0</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.1</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -514,9 +514,8 @@
       }
     }
 
-    // --- 頂点の再配置(改修部分) ---
+    // --- 頂点の再配置 ---
     function updateActiveCoordinates() {
-      // 一旦すべての頂点座標を本来のマスター座標にリセット
       shapeData.vertices.forEach(v => {
         if(v.base_v) v.v = [...v.base_v];
       });
@@ -524,7 +523,7 @@
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       const n = activeVerts.length;
       if (n < 2) return;
-      if (n === shapeData.vertices.length && !isCurrentFlatMode()) return; // 欠損なし＆3Dなら再配置不要
+      if (n === shapeData.vertices.length && !isCurrentFlatMode()) return; 
 
       const is2DFlat = isCurrentFlatMode();
       let tempShape;
@@ -537,7 +536,6 @@
         else if (n === 8) tempShape = SHAPES.hexahedron;
         else tempShape = generateCustomShape(n, false);
       }
-      // アクティブな頂点に対し、理想形の座標を再割り当て
       activeVerts.forEach((v, i) => {
         v.v = [...tempShape.vertices[i].v];
       });
@@ -578,12 +576,10 @@
       if (type === 'custom') { 
         shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); 
       } else { 
-        // 破壊的変更を防ぐため cloneShape を使用
         shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : cloneShape(SHAPES[type]); 
       }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
       
-      // マスター座標のバックアップ
       shapeData.vertices.forEach(v => {
         if (!v.base_v) v.base_v = [...v.v];
       });
@@ -638,7 +634,7 @@
 
       document.getElementById('planeSelect').disabled = isCurrentFlatMode();
       toggleLock(); 
-      updateActiveCoordinates(); // アクティブな頂点数に合わせて再配置
+      updateActiveCoordinates(); 
       buildStatic3DShapes(); 
       updatePlot();
     }
@@ -646,7 +642,7 @@
     function toggleVertexVisibility(id) { 
       if(document.body.classList.contains('viewer-mode')) return; 
       hiddenVertices[id] = !hiddenVertices[id]; 
-      initShapeUI(); // UIを再構築し、座標も再配置する
+      initShapeUI(); 
     }
     function moveLabelUp(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx > 0) swapLabels(id, shapeData.vertices[idx-1].id); }
     function moveLabelDown(id) { if(document.body.classList.contains('viewer-mode')) return; const idx = shapeData.vertices.findIndex(v => v.id === id); if (idx < shapeData.vertices.length - 1) swapLabels(id, shapeData.vertices[idx+1].id); }
@@ -670,7 +666,6 @@
           const opt = document.getElementById(`opt_${v.id}`); if(opt) opt.innerText = `${labelMemory[v.id]} から見下ろす`;
         }
       });
-      // ラベル名変更による凡例の更新などを反映させるため再描画
       updatePlot();
     }
 
@@ -1061,34 +1056,24 @@
         U = new THREE.Vector3().crossVectors(up,N).normalize(); V = new THREE.Vector3().crossVectors(N,U).normalize();
       }
 
-      // --- 指定頂点を常に「真上」に回転する計算 ---
-      let targetTopId = flatMode ? activeVerts[0].id : document.getElementById('planeSelect').value;
-      let targetTopVert = activeVerts.find(v => v.id === targetTopId) || activeVerts[0];
-      const tx = targetTopVert.v[0]*U.x + targetTopVert.v[1]*U.y + targetTopVert.v[2]*U.z;
-      const ty = targetTopVert.v[0]*V.x + targetTopVert.v[1]*V.y + targetTopVert.v[2]*V.z;
-      const currentAngle = Math.atan2(ty, tx);
-      const targetAngle = -Math.PI / 2; // -90度がキャンバスの真上
-      const rotateAngle = targetAngle - currentAngle;
+      // --- 投影平面での生座標（原点基準）を計算 ---
+      const basePtsRaw = activeVerts.map((v, i) => {
+        return {
+          index: i,
+          tx: v.v[0]*U.x + v.v[1]*U.y + v.v[2]*U.z,
+          ty: v.v[0]*V.x + v.v[1]*V.y + v.v[2]*V.z
+        };
+      });
 
-      const projectObj = (obj) => {
-        const px = obj.x*U.x + obj.y*U.y + obj.z*U.z;
-        const py = obj.x*V.x + obj.y*V.y + obj.z*V.z;
-        // 回転適用
-        const rx = px * Math.cos(rotateAngle) - py * Math.sin(rotateAngle);
-        const ry = px * Math.sin(rotateAngle) + py * Math.cos(rotateAngle);
-        return { u: cx + rx * scale, v: cy + ry * scale };
-      };
-
-      const basePoints2D = activeVerts.map((v,i) => { const p=projectObj({x:v.v[0],y:v.v[1],z:v.v[2]}); return {index:i, u:p.u, v:p.v}; });
-      
-      const getConvexHullIndices = (pts) => {
+      // 凸包（外周）を抽出するためのヘルパー
+      const getHull = (pts) => {
         if(pts.length<=3) return pts.map(p=>p.index);
         let allClose = true;
-        for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
+        for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].tx - pts[0].tx) > 1e-4 || Math.abs(pts[i].ty - pts[0].ty) > 1e-4) { allClose = false; break; } }
         if(allClose) return pts.map(p => p.index);
 
-        const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
-        const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
+        const sorted = pts.slice().sort((a,b)=>a.tx!==b.tx ? a.tx-b.tx : a.ty-b.ty);
+        const cross=(o,a,b)=>(a.tx-o.tx)*(b.ty-o.ty)-(a.ty-o.ty)*(b.tx-o.tx);
         const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
         const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
         lower.pop(); upper.pop(); 
@@ -1096,8 +1081,40 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices(basePoints2D);
+      // 外周を構成する頂点インデックスを取得
+      const perimIdx = (flatMode || activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getHull(basePtsRaw);
 
+      // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
+      // 外周頂点の中で、原点から一定距離離れており、最も若い(最初の)頂点を基準とする
+      let rotateAngle = 0;
+      let minIdxPt = null;
+      perimIdx.forEach(idx => {
+         const pt = basePtsRaw[idx];
+         if (Math.sqrt(pt.tx*pt.tx + pt.ty*pt.ty) > 1e-4) {
+            if (!minIdxPt || pt.index < minIdxPt.index) minIdxPt = pt;
+         }
+      });
+      if (minIdxPt) {
+        const currentAngle = Math.atan2(minIdxPt.ty, minIdxPt.tx);
+        rotateAngle = -Math.PI / 2 - currentAngle; // -Math.PI/2 = 真上(12時)
+      }
+
+      // 回転を適用する関数
+      const projectObj = (obj) => {
+        const px = obj.x*U.x + obj.y*U.y + obj.z*U.z;
+        const py = obj.x*V.x + obj.y*V.y + obj.z*V.z;
+        const rx = px * Math.cos(rotateAngle) - py * Math.sin(rotateAngle);
+        const ry = px * Math.sin(rotateAngle) + py * Math.cos(rotateAngle);
+        return { u: cx + rx * scale, v: cy + ry * scale };
+      };
+
+      // 最終的な2D描画座標
+      const basePoints2D = activeVerts.map((v,i) => {
+         const p = projectObj({x:v.v[0], y:v.v[1], z:v.v[2]});
+         return {index: i, u: p.u, v: p.v};
+      });
+
+      // 描画
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
       perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
       ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
@@ -1153,11 +1170,9 @@
       const compCount = compareDataList.filter(c=>!c.hidden).length;
       const bgHeight = 10 + 22 + (compCount + 1) * 16;
       
-      // 座布団 (背景)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
       ctx.fillRect(5, 5, maxTextW + 16, bgHeight);
 
-      // テキスト描画
       let legendY = 10;
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText(mText, 10, legendY);
@@ -1278,7 +1293,6 @@
       if(document.body.classList.contains('viewer-mode')) document.querySelectorAll('input[type="text"]').forEach(el=>el.disabled=true);
       if(window.innerWidth<=900) setMobileTab('config'); setTimeout(onWindowResize,100);
       
-      // サジェスト用のリスト取得を非同期で実行
       if (CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY) {
         fetchCloudList();
       }
