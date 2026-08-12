@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.1</title>
+  <title>立体評価チャート・プロトタイプ v25.2</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.1</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.2</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -527,8 +527,77 @@
 
       const is2DFlat = isCurrentFlatMode();
       let tempShape;
+      let target2DIndices = null; // 【改修】2D平面化時の対頂関係維持マッピング用
+
       if (is2DFlat) {
         tempShape = generateCustomShape(n, true);
+
+        // 【機能堅持・改修】平面(2D)化したときに、3Dモデル同様、図形の中心を通って対頂となる関係は絶対に維持する。
+        // 対頂となっていたものを隣接させない。（構造上そうならざるを得ない奇数などの場合を除く）
+        // ※この機能はなぜか削られやすいので、確実に残せるように保護する。
+        if (n >= 4) {
+          const paired = new Set();
+          const pairs = [];
+          const singles = [];
+          for(let i = 0; i < n; i++) {
+            if (paired.has(i)) continue;
+            let bestJ = -1;
+            let minDot = Infinity;
+            // 3D状態での本来の向き（base_v）を元に比較
+            const vi = new THREE.Vector3(...activeVerts[i].base_v).normalize();
+            for(let j = i + 1; j < n; j++) {
+              if (paired.has(j)) continue;
+              const vj = new THREE.Vector3(...activeVerts[j].base_v).normalize();
+              const dot = vi.dot(vj);
+              // 最も反対を向いている（対頂）ペアを探す。内積が-0.5未満を条件とする
+              if (dot < -0.5 && dot < minDot) {
+                minDot = dot;
+                bestJ = j;
+              }
+            }
+            if (bestJ !== -1) {
+              pairs.push([i, bestJ]);
+              paired.add(i);
+              paired.add(bestJ);
+            } else {
+              singles.push(i);
+              paired.add(i);
+            }
+          }
+
+          const newOrder = new Array(n).fill(-1);
+          const half = Math.floor(n / 2);
+          let pairIdx = 0;
+          
+          // ペアをインデックスがN/2離れるように配置（2D円周上で確実に対頂になる）
+          for (let k = 0; k < half; k++) {
+            if (pairIdx < pairs.length) {
+              newOrder[k] = pairs[pairIdx][0];
+              newOrder[k + half] = pairs[pairIdx][1];
+              pairIdx++;
+            }
+          }
+          
+          let remaining = [];
+          while (pairIdx < pairs.length) {
+            remaining.push(pairs[pairIdx][0], pairs[pairIdx][1]);
+            pairIdx++;
+          }
+          remaining = remaining.concat(singles);
+          
+          // 空いているスロットに残りを割り当て
+          for (let k = 0; k < n; k++) {
+            if (newOrder[k] === -1 && remaining.length > 0) {
+              newOrder[k] = remaining.shift();
+            }
+          }
+
+          // 逆引きマッピング: 元のactiveVertsのi番目の要素が2D多角形で何番目（インデックス）になるかを保持
+          target2DIndices = new Array(n);
+          for (let k = 0; k < n; k++) {
+            target2DIndices[newOrder[k]] = k;
+          }
+        }
       } else {
         if (n === 4) tempShape = SHAPES.tetrahedron;
         else if (n === 5) tempShape = SHAPES.bipyramid;
@@ -536,8 +605,14 @@
         else if (n === 8) tempShape = SHAPES.hexahedron;
         else tempShape = generateCustomShape(n, false);
       }
+      
       activeVerts.forEach((v, i) => {
-        v.v = [...tempShape.vertices[i].v];
+        // 対頂関係を維持するマッピングがある場合はそれに従う
+        if (is2DFlat && target2DIndices) {
+          v.v = [...tempShape.vertices[target2DIndices[i]].v];
+        } else {
+          v.v = [...tempShape.vertices[i].v];
+        }
       });
       assignPairColors(activeVerts);
     }
@@ -1043,7 +1118,14 @@
       const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
+      
+      // 【改修】2D投影マップに置かれてる[ジャンル名]名前と頂点ラベルが重なるため、
+      // 2～3行下に図形を配置して左上のラベルとの重なりを回避。
+      const offsetY = 45; 
+      const cx = canvas.width / 2;
+      const cy = (canvas.height / 2) + offsetY;
+      // 下にはみ出さないようスケールを適切に縮小
+      const scale = Math.min(canvas.width / 2, (canvas.height / 2) - offsetY) * 0.8; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
 
@@ -1081,13 +1163,29 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // 外周を構成する頂点インデックスを取得
-      const perimIdx = (flatMode || activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getHull(basePtsRaw);
+      // 【機能堅持】図形の外周（凸包）結線ロジックの改善。
+      // 対頂に配置した頂点同士が交差して星型にならないよう、2D平面化モード時は
+      // 「中心からの角度（atan2）順」に時計回りでソートして線を描画するよう修正。
+      // ※改修で削られやすいので、絶対にキープされるように保護。
+      let perimIdx;
+      if (flatMode) {
+        // 2Dモード時は凸包アルゴリズムではなく、中心からの角度順（atan2）で確実に外周を結ぶ
+        perimIdx = basePtsRaw.slice().sort((a, b) => {
+          return Math.atan2(a.ty, a.tx) - Math.atan2(b.ty, b.tx);
+        }).map(p => p.index);
+      } else if (activeVerts.length <= 3) {
+        perimIdx = activeVerts.map((_, i) => i);
+      } else {
+        perimIdx = getHull(basePtsRaw);
+      }
 
       // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
-      // 外周頂点の中で、原点から一定距離離れており、最も若い(最初の)頂点を基準とする
+      // 【機能堅持】2D投影マップにしたとき、投影によってできる図形が三角形のときは△、
+      // 正方形のときは◇、五角形のときは⬠、六角形のときは⬡……のように、
+      // 頂角が真上にくるようにする。この機能もいつの間にか削れるから絶対に維持できるようにする。
       let rotateAngle = 0;
       let minIdxPt = null;
+      // 頂角を真上に向けるため、外周頂点の中で最も若い(インデックスが小さい)頂点を基準とする
       perimIdx.forEach(idx => {
          const pt = basePtsRaw[idx];
          if (Math.sqrt(pt.tx*pt.tx + pt.ty*pt.ty) > 1e-4) {
