@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.3</title>
+  <title>立体評価チャート・プロトタイプ v25.4</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,8 +29,9 @@
     body.is-resizing #drag-overlay { display: block; }
 
     /* 3Dビューポート */
-    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-    #viewport { flex: 1; position: relative; width: 100%; height: 100%; }
+    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden; min-height: 0; }
+    #viewport { flex: 1; position: relative; width: 100%; height: 100%; min-height: 0; }
+    #viewport canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
 
     #viewport-legend {
       position: absolute;
@@ -98,10 +99,19 @@
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
-      #viewport-container { order: 2; flex: 1 1 0%; min-height: 200px; height: 0; }
+      #viewport-container { order: 2; flex: 1; min-height: 0; height: auto; }
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
       /* スマホ表示時余白60px */
-      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
+      #sidebar, #right-sidebar { 
+        order: 4; 
+        width: 100% !important; 
+        max-width: none; 
+        flex: 0 0 var(--bottom-panel-height) !important; /* 確実に高さを固定 */
+        height: var(--bottom-panel-height) !important; 
+        border: none; 
+        border-top: 1px solid #444; 
+        padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; 
+      }
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
       body.tab-label #det-label { display: block !important; }
@@ -815,7 +825,6 @@
       const listEl = document.getElementById('compare-list'); listEl.innerHTML = '';
       if(compareDataList.length > 0) {
         compareDataList.forEach((data, i) => {
-          const colHex = document.getElementById(`compColor1`).value; // Note: original code mapping could be dynamic
           const dynCol = document.getElementById(`compColor${i+1}`) ? document.getElementById(`compColor${i+1}`).value : '#ff00ff';
           const dispName = data.metaData?.targetName || data._filename || `読込データ${i+1}`;
           listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${dynCol}; font-size:12px; ${data.hidden?'opacity:0.5;':''}">
