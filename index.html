@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v23.2</title>
+  <title>立体評価チャート・プロトタイプ v24</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,7 +46,7 @@
       line-height: 1.6;
       text-shadow: 1px 1px 2px #000;
       border: 1px solid rgba(255,255,255,0.15);
-      display: none; /* JSで中身があれば表示 */
+      display: none; 
     }
 
     /* UI要素 */
@@ -163,7 +163,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v23.2</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v24</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -437,6 +437,79 @@
       return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
+    // --- 2D平面化（対頂点維持）処理 ---
+    function flattenShape(shape) {
+      const N = shape.vertices.length;
+      if (N < 3) return;
+
+      const paired = new Set();
+      const pairs = [];
+      const singles = [];
+      
+      // 3D状態での対向ペアを探す
+      for(let i=0; i<N; i++) {
+        if(paired.has(i)) continue;
+        let foundPair = false;
+        const v1 = new THREE.Vector3(...shape.vertices[i].v);
+        for(let j=i+1; j<N; j++) {
+          if(paired.has(j)) continue;
+          const v2 = new THREE.Vector3(...shape.vertices[j].v);
+          if(v1.clone().add(v2).length() < 0.1) {
+            pairs.push([shape.vertices[i], shape.vertices[j]]);
+            paired.add(i);
+            paired.add(j);
+            foundPair = true;
+            break;
+          }
+        }
+        if(!foundPair) singles.push(shape.vertices[i]);
+      }
+
+      // 2D円周上のスロット（0 ~ N-1）に割り当て
+      const slots = new Array(N).fill(null);
+      const half = Math.floor(N / 2);
+      
+      pairs.forEach(pair => {
+        let placed = false;
+        for(let i=0; i<N; i++) {
+          let opp = (i + half) % N;
+          // 向かい合うスロットが両方空いていれば配置
+          if (slots[i] === null && slots[opp] === null && i !== opp) {
+            slots[i] = pair[0];
+            slots[opp] = pair[1];
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) singles.push(pair[0], pair[1]);
+      });
+
+      // 余った頂点（またはペア配置に失敗したもの）を空きスロットへ
+      singles.forEach(vert => {
+        for(let i=0; i<N; i++) {
+          if(slots[i] === null) {
+            slots[i] = vert;
+            break;
+          }
+        }
+      });
+
+      // スロット順に vertices を再構築し、2D円周上の座標に書き換える
+      shape.vertices = [];
+      for(let i=0; i<N; i++) {
+        const vert = slots[i];
+        // 頂点を時計回りに円周上に配置
+        const theta = (2 * Math.PI * i) / N - Math.PI / 2;
+        vert.v = [Math.cos(theta), 0, Math.sin(theta)];
+        shape.vertices.push(vert);
+      }
+
+      // edges を円周順（0-1, 1-2 ... N-1-0）に繋ぎ直す
+      shape.edges = [];
+      for(let i=0; i<N; i++) shape.edges.push([i, (i+1)%N]);
+      shape.faces = [];
+    }
+
     function isCurrentFlatMode() { const e = document.getElementById('flatPolygonToggle'); if(e&&e.checked)return true; return document.getElementById('shapeSelect').value==='custom' && (parseInt(document.getElementById('customVertices').value)||12)<4; }
 
     let shapeData = SHAPES.tetrahedron;
@@ -493,11 +566,20 @@
       const oldScoreMem = { ...scoreMemory };
       const oldHidden = { ...hiddenVertices };
 
-      if (type === 'custom') { shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
-      else { shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
-      if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
+      if (type === 'custom') { 
+        shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), false); 
+      } else { 
+        shapeData = JSON.parse(JSON.stringify(SHAPES[type])); 
+      }
+
+      if (is2DFlat) {
+        flattenShape(shapeData);
+      } else {
+        if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
+      }
       assignPairColors(shapeData.vertices);
 
+      // 同一頂点数ならIDが変わってもラベル・スコア・表示状態を引き継ぐ
       if (oldVertices && oldVertices.length === shapeData.vertices.length) {
         shapeData.vertices.forEach((v, i) => {
           const oldId = oldVertices[i].id;
@@ -632,7 +714,6 @@
             const values = lines[1].split(',').map(s=>s.replace(/^"|"$/g, ''));
             const labels = {}; const scores = {}; let mG = '', mT = '';
             
-            // CSVからのインポート時は列の順番ベースで取り込む (Genre, TargetName のあとはアクティブ頂点順)
             let dataIdx = 0;
             if (headers.length > 0 && headers[0].toLowerCase() === 'genre') { mG = values[0]; dataIdx++; }
             if (headers.length > 1 && headers[1].toLowerCase() === 'targetname') { mT = values[1]; dataIdx++; }
@@ -691,7 +772,7 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        const hullIdx = innerP.map((_, i) => i); // 凸包を取らず設定順につなぐ
+        const hullIdx = innerP.map((_, i) => i); 
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -732,7 +813,6 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // 平面(2D)化のときは凸包を取らず、設定された頂点順で結び星型等の凹みを表現する
         const hullIdx = vec3Array.map((_, i) => i);
         
         const shape = new THREE.Shape();
