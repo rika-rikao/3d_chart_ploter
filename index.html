@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.3</title>
+  <title>立体評価チャート・プロトタイプ v25.4</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -124,7 +124,7 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
   <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- PWA設定 -->
+<!-- PWA設定 -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -147,9 +147,9 @@
     // ☁️ クラウド連携設定 (ここにハードコード)
     // ==========================================
     const CONFIG = {
-      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',
-      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE',
-      GEMINI_API_KEY: ''
+      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      // 例: 'https://xxx.supabase.co'
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE', // 例: 'eyJ...'
+      GEMINI_API_KEY: ''     // 例: 'AIzaSy...'
     };
   </script>
 
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.3</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.4</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -239,6 +239,7 @@
               <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
+            <!-- AI分析ボタンは目立たないように配置 -->
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
               <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析 (Option)</button>
             </div>
@@ -453,124 +454,56 @@
     };
     function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
-    /* 
-     * ※この機能は絶対に削らないこと※
-     * 平面(2D)化したときに、3Dモデルで中心を通って対頂となる(中心対称の)関係を絶対に維持し、
-     * 円周上で隣接させず対角に配置するための処理。
-     */
-    function convertToFlatKeepingOpposites(verticesArray) {
-      const n = verticesArray.length;
-      if (n < 4) {
-        const res = [];
-        for (let i = 0; i < n; i++) res.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/n - Math.PI/2), 0, Math.sin((2*Math.PI*i)/n - Math.PI/2)));
-        return { points: res, edges: n === 2 ? [[0,1]] : Array.from({length:n}, (_,i)=>[i,(i+1)%n]) };
-      }
-      
-      const paired = new Array(n).fill(false);
-      const pairs = [];
-      const singles = [];
-      
-      let cx = 0, cy = 0, cz = 0;
-      verticesArray.forEach(v => { cx += v.x; cy += v.y; cz += v.z; });
-      cx /= n; cy /= n; cz /= n;
-      const centered = verticesArray.map(v => new THREE.Vector3(v.x - cx, v.y - cy, v.z - cz));
+    function generateCustomShape(n, is2DFlat = false, shapeType = 'custom') {
+      let points = [], faces = [], explicitEdges = null;
+      if (is2DFlat || n < 4) {
+        // 【絶対維持】平面(2D)化したときに、3dモデル同様、図形の中心を通って対頂となる(中心を通る線分の両端)関係は絶対に維持する。対頂となっていたものを隣接させない。
+        let map = [];
+        if (shapeType === 'bipyramid' && n === 5) map = [0, 2, 1, 3, 4];
+        else if (shapeType === 'octahedron' && n === 6) map = [0, 2, 4, 1, 3, 5];
+        else if (shapeType === 'hexahedron' && n === 8) map = [0, 1, 2, 3, 6, 7, 4, 5];
+        else {
+          for(let i=0; i<n; i++) map.push(i);
+        }
+        
+        const slotToIdx = [];
+        for(let i=0; i<n; i++) slotToIdx[map[i]] = i;
 
-      for (let i = 0; i < n; i++) {
-        if (paired[i]) continue;
-        let found = false;
-        for (let j = i + 1; j < n; j++) {
-          if (paired[j]) continue;
-          if (centered[i].clone().add(centered[j]).lengthSq() < 0.1) {
-            pairs.push([i, j]);
-            paired[i] = true; paired[j] = true; found = true; break;
+        for (let i = 0; i < n; i++) {
+          const slot = map[i];
+          const angle = (2 * Math.PI * slot) / n - Math.PI / 2;
+          points.push(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)));
+        }
+        
+        explicitEdges = [];
+        if (n > 2) {
+          for(let s=0; s<n; s++) {
+            explicitEdges.push([slotToIdx[s], slotToIdx[(s+1)%n]]);
+          }
+          for (let s = 1; s < n - 1; s++) {
+            faces.push([slotToIdx[0], slotToIdx[s], slotToIdx[s+1]]);
+          }
+        } else if (n === 2) {
+          explicitEdges = [[0, 1]];
+        }
+      } else {
+        if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
+        else if (n === 5) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(0,0,1), new THREE.Vector3(Math.cos(-Math.PI/6),0,Math.sin(-Math.PI/6)), new THREE.Vector3(Math.cos(7*Math.PI/6),0,Math.sin(7*Math.PI/6)) ];
+        else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
+        else if (n === 8) { const c=1/Math.sqrt(3); points = [ new THREE.Vector3(-c,-c,-c), new THREE.Vector3(c,-c,-c), new THREE.Vector3(c,c,-c), new THREE.Vector3(-c,c,-c), new THREE.Vector3(-c,-c,c), new THREE.Vector3(c,-c,c), new THREE.Vector3(c,c,c), new THREE.Vector3(-c,c,c) ]; }
+        else if (n === 12) { const t=(1+Math.sqrt(5))/2, len=Math.sqrt(1+t*t), r1=1/len, r2=t/len; points = [ new THREE.Vector3(-r1,r2,0), new THREE.Vector3(r1,r2,0), new THREE.Vector3(-r1,-r2,0), new THREE.Vector3(r1,-r2,0), new THREE.Vector3(0,-r1,r2), new THREE.Vector3(0,r1,r2), new THREE.Vector3(0,-r1,-r2), new THREE.Vector3(0,r1,-r2), new THREE.Vector3(r2,0,-r1), new THREE.Vector3(r2,0,r1), new THREE.Vector3(-r2,0,-r1), new THREE.Vector3(-r2,0,r1) ]; }
+        else if (n === 20) { const p=(1+Math.sqrt(5))/2, r=Math.sqrt(3); [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[0,-1/p,-p],[0,1/p,-p],[0,-1/p,p],[0,1/p,p],[-1/p,-p,0],[1/p,-p,0],[-1/p,p,0],[1/p,p,0],[-p,0,-1/p],[p,0,-1/p],[-p,0,1/p],[p,0,1/p]].forEach(pt=>points.push(new THREE.Vector3(pt[0]/r,pt[1]/r,pt[2]/r))); }
+        else if (n % 2 === 0) { const k=n/2, h=0.55, r=Math.sqrt(1-h*h); for(let i=0;i<k;i++){ const t=(2*Math.PI*i)/k; points.push(new THREE.Vector3(r*Math.cos(t),h,r*Math.sin(t))); points.push(new THREE.Vector3(-r*Math.cos(t),-h,-r*Math.sin(t))); } }
+        else { const k=n-2; points.push(new THREE.Vector3(0,1,0)); points.push(new THREE.Vector3(0,-1,0)); for(let i=0;i<k;i++) points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/k),0,Math.sin((2*Math.PI*i)/k))); }
+        if (points.length >= 4) {
+          const pos = new THREE.ConvexGeometry(points).attributes.position;
+          for(let i=0; i<pos.count; i+=3) {
+            const v1=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)), v2=new THREE.Vector3(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1)), v3=new THREE.Vector3(pos.getX(i+2),pos.getY(i+2),pos.getZ(i+2));
+            const i1=points.findIndex(p=>p.distanceTo(v1)<0.001), i2=points.findIndex(p=>p.distanceTo(v2)<0.001), i3=points.findIndex(p=>p.distanceTo(v3)<0.001);
+            if(i1!==-1&&i2!==-1&&i3!==-1) faces.push([i1,i2,i3]);
           }
         }
-        if (!found) { singles.push(i); paired[i] = true; }
       }
-
-      const arrangement = new Array(n).fill(-1);
-      const half = Math.floor(n / 2);
-      let pairSlot = 0;
-      
-      pairs.forEach(pair => {
-        while (pairSlot < half && arrangement[pairSlot] !== -1) pairSlot++;
-        if (pairSlot < half) {
-          arrangement[pairSlot] = pair[0];
-          arrangement[pairSlot + half] = pair[1];
-          pairSlot++;
-        } else {
-          singles.push(pair[0], pair[1]);
-        }
-      });
-
-      for (let i = 0; i < n; i++) {
-        if (arrangement[i] === -1 && singles.length > 0) {
-          arrangement[i] = singles.shift();
-        }
-      }
-
-      const res = new Array(n);
-      const edges = [];
-      for (let k = 0; k < n; k++) {
-        const idx = arrangement[k];
-        if (idx !== -1) {
-          const angle = (2 * Math.PI * k) / n - Math.PI / 2;
-          res[idx] = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-        }
-        edges.push([arrangement[k], arrangement[(k + 1) % n]]);
-      }
-      
-      for (let i = 0; i < n; i++) {
-        if (!res[i]) {
-          const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-          res[i] = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-        }
-      }
-      return { points: res, edges: edges };
-    }
-
-    function generateCustomShape(n, is2DFlat = false) {
-      let points = [], faces = [], explicitEdges = null;
-      
-      if (n === 2) {
-         points = [new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1)];
-      } else if (n === 3) {
-         points = [new THREE.Vector3(0,1,0), new THREE.Vector3(-0.866,-0.5,0.5), new THREE.Vector3(0.866,-0.5,0.5)];
-      } else if (n === 4) {
-        points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
-      } else if (n === 5) {
-        points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(0,0,1), new THREE.Vector3(Math.cos(-Math.PI/6),0,Math.sin(-Math.PI/6)), new THREE.Vector3(Math.cos(7*Math.PI/6),0,Math.sin(7*Math.PI/6)) ];
-      } else if (n === 6) {
-        points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
-      } else if (n === 8) {
-        const c=1/Math.sqrt(3); points = [ new THREE.Vector3(-c,-c,-c), new THREE.Vector3(c,-c,-c), new THREE.Vector3(c,c,-c), new THREE.Vector3(-c,c,-c), new THREE.Vector3(-c,-c,c), new THREE.Vector3(c,-c,c), new THREE.Vector3(c,c,c), new THREE.Vector3(-c,c,c) ];
-      } else if (n === 12) {
-        const t=(1+Math.sqrt(5))/2, len=Math.sqrt(1+t*t), r1=1/len, r2=t/len; points = [ new THREE.Vector3(-r1,r2,0), new THREE.Vector3(r1,r2,0), new THREE.Vector3(-r1,-r2,0), new THREE.Vector3(r1,-r2,0), new THREE.Vector3(0,-r1,r2), new THREE.Vector3(0,r1,r2), new THREE.Vector3(0,-r1,-r2), new THREE.Vector3(0,r1,-r2), new THREE.Vector3(r2,0,-r1), new THREE.Vector3(r2,0,r1), new THREE.Vector3(-r2,0,-r1), new THREE.Vector3(-r2,0,r1) ];
-      } else if (n === 20) {
-        const p=(1+Math.sqrt(5))/2, r=Math.sqrt(3); [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[0,-1/p,-p],[0,1/p,-p],[0,-1/p,p],[0,1/p,p],[-1/p,-p,0],[1/p,-p,0],[-1/p,p,0],[1/p,p,0],[-p,0,-1/p],[p,0,-1/p],[-p,0,1/p],[p,0,1/p]].forEach(pt=>points.push(new THREE.Vector3(pt[0]/r,pt[1]/r,pt[2]/r)));
-      } else if (n % 2 === 0) {
-        const k=n/2, h=0.55, r=Math.sqrt(1-h*h); for(let i=0;i<k;i++){ const t=(2*Math.PI*i)/k; points.push(new THREE.Vector3(r*Math.cos(t),h,r*Math.sin(t))); points.push(new THREE.Vector3(-r*Math.cos(t),-h,-r*Math.sin(t))); }
-      } else {
-        const k=n-2; points.push(new THREE.Vector3(0,1,0)); points.push(new THREE.Vector3(0,-1,0)); for(let i=0;i<k;i++) points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/k),0,Math.sin((2*Math.PI*i)/k)));
-      }
-
-      if (points.length >= 4) {
-        const pos = new THREE.ConvexGeometry(points).attributes.position;
-        for(let i=0; i<pos.count; i+=3) {
-          const v1=new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)), v2=new THREE.Vector3(pos.getX(i+1),pos.getY(i+1),pos.getZ(i+1)), v3=new THREE.Vector3(pos.getX(i+2),pos.getY(i+2),pos.getZ(i+2));
-          const i1=points.findIndex(p=>p.distanceTo(v1)<0.001), i2=points.findIndex(p=>p.distanceTo(v2)<0.001), i3=points.findIndex(p=>p.distanceTo(v3)<0.001);
-          if(i1!==-1&&i2!==-1&&i3!==-1) faces.push([i1,i2,i3]);
-        }
-      }
-
-      if (is2DFlat || n < 4) {
-        const flatData = convertToFlatKeepingOpposites(points);
-        points = flatData.points;
-        explicitEdges = flatData.edges;
-        faces = [];
-        if (n > 2) for (let i = 1; i < n - 1; i++) faces.push([0, i, i + 1]);
-      }
-
       return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
@@ -621,13 +554,14 @@
       const is2DFlat = isCurrentFlatMode();
       let tempShape;
       if (is2DFlat) {
-        tempShape = generateCustomShape(n, true);
+        const currentType = document.getElementById('shapeSelect').value;
+        tempShape = generateCustomShape(n, true, currentType);
       } else {
         if (n === 4) tempShape = SHAPES.tetrahedron;
         else if (n === 5) tempShape = SHAPES.bipyramid;
         else if (n === 6) tempShape = SHAPES.octahedron;
         else if (n === 8) tempShape = SHAPES.hexahedron;
-        else tempShape = generateCustomShape(n, false);
+        else tempShape = generateCustomShape(n, false, 'custom');
       }
       activeVerts.forEach((v, i) => {
         v.v = [...tempShape.vertices[i].v];
@@ -667,21 +601,9 @@
       const oldHidden = { ...hiddenVertices };
 
       if (type === 'custom') { 
-        shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); 
+        shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat, 'custom'); 
       } else { 
-        if (is2DFlat) {
-          const temp = cloneShape(SHAPES[type]);
-          const pts = temp.vertices.map(v => new THREE.Vector3(...v.v));
-          const flatData = convertToFlatKeepingOpposites(pts);
-          shapeData = cloneShape(SHAPES[type]); 
-          shapeData.vertices.forEach((v, i) => v.v = [flatData.points[i].x, flatData.points[i].y, flatData.points[i].z]);
-          shapeData.edges = flatData.edges;
-          shapeData.faces = [];
-          const n = shapeData.vertices.length;
-          if (n > 2) for(let i=1; i<n-1; i++) shapeData.faces.push([0, i, i+1]);
-        } else {
-          shapeData = cloneShape(SHAPES[type]); 
-        }
+        shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true, type) : cloneShape(SHAPES[type]); 
       }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
       
@@ -993,7 +915,16 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        const hullIdx = innerP.map((_, i) => i);
+        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画する。対頂が交差して星型になるのを防ぐ。
+        // 【絶対維持】隣接する頂点を結んだ外周辺だけの平面図形が形成されるロジック。
+        const center = new THREE.Vector3(0,0,0);
+        innerP.forEach(p => center.add(p));
+        center.divideScalar(innerP.length);
+        const hullIdx = innerP.map((_, i) => i).sort((a, b) => {
+            const angleA = Math.atan2(innerP[a].z - center.z, innerP[a].x - center.x);
+            const angleB = Math.atan2(innerP[b].z - center.z, innerP[b].x - center.x);
+            return angleA - angleB;
+        });
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -1034,7 +965,16 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        const hullIdx = vec3Array.map((_, i) => i);
+        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画。星型を防止。
+        // 【絶対維持】外周辺だけの平面図形を形成。
+        const center = new THREE.Vector3();
+        vec3Array.forEach(p => center.add(p));
+        center.divideScalar(vec3Array.length);
+        const hullIdx = vec3Array.map((_, i) => i).sort((a, b) => {
+            const angleA = Math.atan2(vec3Array[a].z - center.z, vec3Array[a].x - center.x);
+            const angleB = Math.atan2(vec3Array[b].z - center.z, vec3Array[b].x - center.x);
+            return angleA - angleB;
+        });
         const shape = new THREE.Shape();
         shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
         for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
@@ -1148,14 +1088,7 @@
       const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // 改修: 2D投影マップでのみ図全体を2〜3行分(約45px)下にずらす
-      const shiftY = 45;
-      const cx = canvas.width / 2;
-      const cy = (canvas.height / 2) + shiftY;
-      // ずらした分、下がはみ出さないようにスケールを少し調整
-      const availableRadius = Math.min(cx, canvas.height - cy - 20); 
-      const scale = (availableRadius > 0 ? availableRadius : Math.min(cx, canvas.height/2)) * 0.75; 
+      const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
 
@@ -1194,10 +1127,22 @@
       };
 
       // 外周を構成する頂点インデックスを取得
-      const perimIdx = (flatMode || activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getHull(basePtsRaw);
+      let perimIdx = [];
+      if (flatMode || activeVerts.length <= 3) {
+        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして結線。星型を防ぐ必須ロジック。
+        // 【絶対維持】外周辺だけの図形が形成されるロジック。
+        const centerTx = basePtsRaw.reduce((sum, p) => sum + p.tx, 0) / basePtsRaw.length;
+        const centerTy = basePtsRaw.reduce((sum, p) => sum + p.ty, 0) / basePtsRaw.length;
+        const sorted = basePtsRaw.slice().sort((a, b) => {
+           return Math.atan2(a.ty - centerTy, a.tx - centerTx) - Math.atan2(b.ty - centerTy, b.tx - centerTx);
+        });
+        perimIdx = sorted.map(p => p.index);
+      } else {
+        perimIdx = getHull(basePtsRaw);
+      }
 
       // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
-      // 外周頂点の中で、原点から一定距離離れており、最も若い(最初の)頂点を基準とする
+      // 【絶対維持】投影によってできる図形（三角形、四角形、五角形など）の頂角が真上に来るようにするロジック。
       let rotateAngle = 0;
       let minIdxPt = null;
       perimIdx.forEach(idx => {
@@ -1282,10 +1227,13 @@
       const compCount = compareDataList.filter(c=>!c.hidden).length;
       const bgHeight = 10 + 22 + (compCount + 1) * 16;
       
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-      ctx.fillRect(5, 5, maxTextW + 16, bgHeight);
+      // 【改修】2D投影マップに置かれている名前と頂点ラベルが重ならないよう、2〜3行下(offsetY)にラベルと図を配置する
+      const offsetY = 45;
 
-      let legendY = 10;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.fillRect(5, 5 + offsetY, maxTextW + 16, bgHeight);
+
+      let legendY = 10 + offsetY;
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText(mText, 10, legendY);
       legendY += 22; ctx.font = '11px sans-serif';
