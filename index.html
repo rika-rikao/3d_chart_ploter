@@ -46,7 +46,7 @@
       line-height: 1.6;
       text-shadow: 1px 1px 2px #000;
       border: 1px solid rgba(255,255,255,0.15);
-      display: none;
+      display: none; /* JSで中身があれば表示 */
     }
 
     /* UI要素 */
@@ -121,7 +121,6 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/math/ConvexHull.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
-
 <!-- PWA設定 -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
@@ -411,33 +410,12 @@
     };
     function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
-    function generateCustomShape(n, is2DFlat = false) {
+    function generateCustomShape(n) {
       let points = [], faces = [], explicitEdges = null;
-      if (is2DFlat || n < 4) {
+      if (n < 4) {
         explicitEdges = [];
-        
-        // --- 2D平面化時の対頂角配置ロジック ---
-        let mapping = [];
-        let K = Math.floor(n / 2);
-        for(let k=0; k<K; k++){ mapping.push(k); mapping.push(k+K); }
-        if(n%2 !== 0) mapping.push(n-1); // 奇数の場合の余り
-
-        // UI順序に沿って座標を割り当てる (0と1が対頂になる)
-        for (let i = 0; i < n; i++) { 
-          let j = mapping[i];
-          let angle = (2*Math.PI*j)/n - Math.PI/2;
-          points.push(new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle))); 
-        }
-        
-        let angleOrder = [];
-        for(let j=0; j<n; j++) angleOrder.push(mapping.indexOf(j));
-        
-        if (n > 2) {
-          for(let k=0; k<n; k++) explicitEdges.push([angleOrder[k], angleOrder[(k+1)%n]]);
-        } else if (n === 2) {
-          explicitEdges = [[0, 1]];
-        }
-        for (let i = 1; i < n - 1; i++) faces.push([angleOrder[0], angleOrder[i], angleOrder[i+1]]);
+        for (let i = 0; i < n; i++) { points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/n - Math.PI/2), 0, Math.sin((2*Math.PI*i)/n - Math.PI/2))); if (n > 2) explicitEdges.push([i, (i+1)%n]); }
+        if (n === 2) explicitEdges = [[0, 1]]; else for (let i = 1; i < n - 1; i++) faces.push([0, i, i+1]);
       } else {
         if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
         else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
@@ -455,7 +433,7 @@
           }
         }
       }
-      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
+      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z], _3dv:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
     function isCurrentFlatMode() { const e = document.getElementById('flatPolygonToggle'); if(e&&e.checked)return true; return document.getElementById('shapeSelect').value==='custom' && (parseInt(document.getElementById('customVertices').value)||12)<4; }
@@ -472,15 +450,62 @@
       let colorIdx = 0; const paired = new Set(); vertices.forEach(v => v.pairColor = ''); 
       for(let i=0; i<vertices.length; i++) {
         if(paired.has(i)) continue;
-        const v1 = new THREE.Vector3(...vertices[i].v);
+        const v1 = new THREE.Vector3(...(v._3dv || vertices[i].v));
         for(let j=i+1; j<vertices.length; j++) {
           if(paired.has(j)) continue;
-          if(v1.clone().add(new THREE.Vector3(...vertices[j].v)).length() < 0.1) {
+          if(v1.clone().add(new THREE.Vector3(...(vertices[j]._3dv || vertices[j].v))).length() < 0.1) {
             vertices[i].pairColor = vertices[j].pairColor = pairColorPalette[colorIdx % pairColorPalette.length];
             paired.add(i).add(j); colorIdx++; break;
           }
         }
       }
+    }
+
+    // 2D平面化時の対頂角スロット割当
+    function apply2DFlatMapping(vertices) {
+      let N = vertices.length;
+      let paired = new Set();
+      let pairs = [];
+      let singles = [];
+      for(let i=0; i<N; i++) {
+        if(paired.has(i)) continue;
+        let found = false;
+        const v1 = new THREE.Vector3(...vertices[i]._3dv);
+        for(let j=i+1; j<N; j++) {
+          if(paired.has(j)) continue;
+          if(v1.clone().add(new THREE.Vector3(...vertices[j]._3dv)).length() < 0.1) {
+            pairs.push([i, j]); paired.add(i).add(j); found = true; break;
+          }
+        }
+        if(!found) { singles.push(i); paired.add(i); }
+      }
+
+      let halfN = Math.floor(N / 2);
+      let slotAssigned = new Array(N).fill(false);
+      vertices.forEach(v => v._slot = -1);
+
+      let currentSlot = 0;
+      pairs.forEach(pair => {
+        while(currentSlot < N && slotAssigned[currentSlot]) currentSlot++;
+        let slot1 = currentSlot;
+        let slot2 = (slot1 + halfN) % N;
+        while(slotAssigned[slot2]) slot2 = (slot2 + 1) % N;
+        
+        vertices[pair[0]]._slot = slot1; vertices[pair[1]]._slot = slot2;
+        slotAssigned[slot1] = true; slotAssigned[slot2] = true;
+      });
+
+      singles.forEach(idx => {
+        let s = 0;
+        while(s < N && slotAssigned[s]) s++;
+        vertices[idx]._slot = s; slotAssigned[s] = true;
+      });
+
+      vertices.forEach(v => {
+        let angle = -Math.PI / 2 + (2 * Math.PI * v._slot) / N;
+        v.v = [Math.cos(angle), 0, Math.sin(angle)];
+        v._angle = angle;
+      });
     }
 
     // --- Three.js セットアップ ---
@@ -514,9 +539,15 @@
       const oldScoreMem = { ...scoreMemory };
       const oldHidden = { ...hiddenVertices };
 
-      if (type === 'custom') { shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
-      else { shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
+      if (type === 'custom') { 
+        shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2)); 
+      } else { 
+        shapeData = JSON.parse(JSON.stringify(SHAPES[type])); 
+        shapeData.vertices.forEach(v => { if(!v._3dv) v._3dv = [...v.v]; });
+      }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
+
+      if (is2DFlat) apply2DFlatMapping(shapeData.vertices);
       assignPairColors(shapeData.vertices);
 
       if (oldVertices && oldVertices.length === shapeData.vertices.length) {
@@ -700,22 +731,40 @@
     }
 
     // --- 3D 描画 ---
+    function getConvexHullIndices2D(points3D, vecU, vecV) {
+      if (points3D.length <= 3) return points3D.map((_, i) => i);
+      const pts = points3D.map((p, i) => ({ index: i, u: p.x*vecU.u + p.z*vecU.v, v: p.x*vecV.u + p.z*vecV.v }));
+      let allClose = true;
+      for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
+      if(allClose) return pts.map(p => p.index);
+
+      pts.sort((a,b) => a.u!==b.u ? a.u-b.u : a.v-b.v);
+      const cross = (o, a, b) => (a.u-o.u)*(b.v-o.v) - (a.v-o.v)*(b.u-o.u);
+      const lower = []; for(let i=0; i<pts.length; i++) { while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i])<=0) lower.pop(); lower.push(pts[i]); }
+      const upper = []; for(let i=pts.length-1; i>=0; i--) { while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i])<=0) upper.pop(); upper.push(pts[i]); }
+      lower.pop(); upper.pop(); 
+      const hull = lower.concat(upper).map(p=>p.index);
+      return hull.length >= 3 ? hull : points3D.map((_, i) => i);
+    }
+
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       if(activeVerts.length < 3) return;
       
       const isFlat = isCurrentFlatMode();
-      const posArr = [], innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
-      innerP.forEach(p => posArr.push(p.x, p.y, p.z));
-      
+      const innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
+
       if(isFlat || innerP.length === 3) {
-        // 平面化時、設定角度順に沿って線を結ぶ
-        const angles = innerP.map((v, i) => ({ i, a: Math.atan2(v.z, v.x) }));
-        angles.sort((A, B) => A.a - B.a);
-        const hullIdx = angles.map(obj => obj.i);
-        
+        let hullIdx;
+        if (isFlat && activeVerts[0]._angle !== undefined) {
+          let angleInfos = activeVerts.map((v, i) => ({ idx: i, angle: v._angle }));
+          angleInfos.sort((a, b) => a.angle - b.angle);
+          hullIdx = angleInfos.map(a => a.idx);
+        } else {
+          hullIdx = getConvexHullIndices2D(innerP, {u:1,v:0}, {u:0,v:1}); 
+        }
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -752,14 +801,18 @@
       return sprite;
     }
 
-    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group, baseVec3Array) {
+    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group, activeVerts) {
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // ベースの配置角度に基づいて結ぶ順序（hullIdx）を決定する。これにより星型(凹み)を表現可能
-        const angles = baseVec3Array.map((v, i) => ({ i, a: Math.atan2(v.z, v.x) }));
-        angles.sort((A, B) => A.a - B.a);
-        const hullIdx = angles.map(obj => obj.i);
+        let hullIdx;
+        if (isFlat && activeVerts && activeVerts[0]._angle !== undefined) {
+          let angleInfos = activeVerts.map((v, i) => ({ idx: i, angle: v._angle }));
+          angleInfos.sort((a, b) => a.angle - b.angle);
+          hullIdx = angleInfos.map(a => a.idx);
+        } else {
+          hullIdx = getConvexHullIndices2D(vec3Array, {u:1,v:0}, {u:0,v:1}); 
+        }
         
         const shape = new THREE.Shape();
         shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
@@ -805,8 +858,7 @@
       const faceOpacity = document.getElementById('faceOpacity')?parseFloat(document.getElementById('faceOpacity').value):0.4;
       const lineOpacity = document.getElementById('lineOpacity')?parseFloat(document.getElementById('lineOpacity').value):0.9;
 
-      const baseVecs = activeVerts.map(v => new THREE.Vector3(...v.v));
-      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup, baseVecs);
+      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup, activeVerts);
 
       const compP_vecs_list = []; const compCentroids = [];
       compareDataList.forEach((cData, i) => {
@@ -829,7 +881,7 @@
         compCentroids.push({x:ccx, y:ccy, z:ccz});
         
         const colHex = document.getElementById(`compColor${i+1}`).value;
-        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup, baseVecs);
+        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup, activeVerts);
         const cpMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06,32,32), new THREE.MeshBasicMaterial({color:colHex, depthTest:false})); cpMesh.renderOrder=9999;
         cpMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,32,32), new THREE.MeshBasicMaterial({color:colHex, transparent:true, opacity:0.4, depthTest:false})));
         cpMesh.position.set(ccx, ccy, ccz); compareGroup.add(cpMesh);
@@ -900,16 +952,6 @@
       
       const getConvexHullIndices = (pts) => {
         if(pts.length<=3) return pts.map(p=>p.index);
-        
-        if (flatMode) {
-          const angles = pts.map((p, i) => {
-            const baseV = activeVerts[i].v;
-            return { i, a: Math.atan2(baseV[2], baseV[0]) }; 
-          });
-          angles.sort((A, B) => A.a - B.a);
-          return angles.map(obj => obj.i);
-        }
-
         let allClose = true;
         for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
         if(allClose) return pts.map(p => p.index);
@@ -923,7 +965,9 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      const perimIdx = (flatMode||activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getConvexHullIndices(basePoints2D);
+      const perimIdx = (flatMode && activeVerts[0]._angle !== undefined) 
+        ? activeVerts.map((v, i) => ({ idx: i, angle: v._angle })).sort((a, b) => a.angle - b.angle).map(a => a.idx)
+        : getConvexHullIndices(basePoints2D);
 
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
       perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
