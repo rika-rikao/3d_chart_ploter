@@ -29,8 +29,8 @@
     body.is-resizing #drag-overlay { display: block; }
 
     /* 3Dビューポート */
-    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
-    #viewport { flex: 1; position: relative; }
+    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    #viewport { flex: 1; position: relative; width: 100%; height: 100%; }
 
     #viewport-legend {
       position: absolute;
@@ -98,7 +98,7 @@
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
-      #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
+      #viewport-container { order: 2; flex: 1 1 0%; min-height: 200px; height: 0; }
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
       /* スマホ表示時余白60px */
       #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
@@ -815,9 +815,10 @@
       const listEl = document.getElementById('compare-list'); listEl.innerHTML = '';
       if(compareDataList.length > 0) {
         compareDataList.forEach((data, i) => {
-          const colHex = document.getElementById(`compColor${i+1}`).value;
+          const colHex = document.getElementById(`compColor1`).value; // Note: original code mapping could be dynamic
+          const dynCol = document.getElementById(`compColor${i+1}`) ? document.getElementById(`compColor${i+1}`).value : '#ff00ff';
           const dispName = data.metaData?.targetName || data._filename || `読込データ${i+1}`;
-          listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${colHex}; font-size:12px; ${data.hidden?'opacity:0.5;':''}">
+          listEl.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-left:4px solid ${dynCol}; font-size:12px; ${data.hidden?'opacity:0.5;':''}">
             <span>${dispName}</span>
             <div style="display:flex; gap:4px;">
               <button class="secondary-btn" style="padding:2px 6px; background:${data.hidden?'#555':'#33aa33'}; border:none;" onclick="toggleCompareVisible(${i})">👁</button>
