@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.2</title>
+  <title>立体評価チャート・プロトタイプ v25.3</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -178,7 +178,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.2</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.3</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -951,7 +951,7 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶために角度順でソートする
+        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = innerP.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -996,7 +996,7 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶために角度順でソートする
+        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = vec3Array.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -1114,7 +1114,12 @@
       const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
+      
+      const cx = canvas.width / 2;
+      // 左上の凡例（ジャンル・名前）と頂点ラベルの重なりを回避するため、図形の中心を下に 40px ずらす
+      const cy = canvas.height / 2 + 40; 
+      // 中心をずらした分、図形が下にはみ出さないようスケールを調整
+      const scale = Math.min(cx, canvas.height - cy - 10) * 0.75; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
 
@@ -1127,6 +1132,7 @@
         U = new THREE.Vector3().crossVectors(up,N).normalize(); V = new THREE.Vector3().crossVectors(N,U).normalize();
       }
 
+      // --- 投影平面での生座標（原点基準）を計算 ---
       const basePtsRaw = activeVerts.map((v, i) => {
         return { index: i, tx: v.v[0]*U.x + v.v[1]*U.y + v.v[2]*U.z, ty: v.v[0]*V.x + v.v[1]*V.y + v.v[2]*V.z };
       });
@@ -1146,17 +1152,28 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // --- 指定頂点を常に「真上」に回転する計算 ---
-      // 平面モード時は先頭(index:0)の頂点、立体時は選択した頂点を真上(12時=-90度)に向ける
+      // [MUST MAINTAIN] 投影によってできる図形が△、◇、⬠、⬡ のように、頂角が必ず真上（12時方向）を向くように回転させる
       let rotateAngle = 0;
-      let targetTopId = flatMode ? activeVerts[0].id : document.getElementById('planeSelect').value;
-      let targetTopIdx = activeVerts.findIndex(v => v.id === targetTopId);
+      let targetTopIdx = flatMode ? 0 : activeVerts.findIndex(v => v.id === document.getElementById('planeSelect').value);
       if (targetTopIdx === -1) targetTopIdx = 0;
-      
-      const tPt = basePtsRaw[targetTopIdx];
-      if (Math.sqrt(tPt.tx*tPt.tx + tPt.ty*tPt.ty) > 1e-4) {
-        const currentAngle = Math.atan2(tPt.ty, tPt.tx);
-        rotateAngle = -Math.PI / 2 - currentAngle; 
+
+      let refPt = null;
+      if (flatMode) {
+          // 平面時は最初の頂点を真上に向ける
+          refPt = basePtsRaw[targetTopIdx];
+      } else {
+          // 3D見下ろし時は、ターゲット(見下ろしている頂点)自身は中心(0,0)になるため、
+          // それ以外の最初の外周頂点を真上に向けることで自然な正多角形にする
+          let candidates = basePtsRaw.filter(p => Math.sqrt(p.tx*p.tx + p.ty*p.ty) > 1e-4);
+          if (candidates.length > 0) {
+              refPt = candidates[0]; // 一番若い頂点
+          }
+      }
+
+      if (refPt) {
+          const currentAngle = Math.atan2(refPt.ty, refPt.tx);
+          // 2DキャンバスはY軸下向きなので、-Math.PI / 2 が真上(12時)となる
+          rotateAngle = -Math.PI / 2 - currentAngle; 
       }
 
       const projectObj = (obj) => {
@@ -1172,7 +1189,7 @@
          return {index: i, u: p.u, v: p.v};
       });
 
-      // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶために角度順でソートする
+      // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
       let perimIdx;
       if (flatMode) {
           const angles = basePoints2D.map(p => ({
