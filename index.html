@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.5</title>
+  <title>立体評価チャート・プロトタイプ v25.6</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
     
-    /* サイドバー類 (下部の余白を広く確保) */
+    /* サイドバー類 */
     #sidebar, #right-sidebar {
       width: 350px; min-width: 250px; height: 100vh; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; overflow-y: auto; position: relative;
@@ -28,9 +28,26 @@
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
     body.is-resizing #drag-overlay { display: block; }
 
-    /* 3Dビューポート (過去の安定動作コードへ復元) */
-    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
-    #viewport { flex: 1; position: relative; }
+    /* ★ 3Dビューポート (確実に領域を確保する強固な指定) ★ */
+    #viewport-container { 
+      flex: 1 1 0%; 
+      position: relative; 
+      display: flex; 
+      flex-direction: column; 
+      height: 100vh;
+      min-height: 250px;
+    }
+    #viewport { 
+      flex: 1 1 0%; 
+      position: relative; 
+      width: 100%; 
+      height: 100%; 
+    }
+    #viewport canvas {
+      display: block;
+      width: 100% !important;
+      height: 100% !important;
+    }
 
     #viewport-legend {
       position: absolute;
@@ -64,7 +81,7 @@
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    /* 2Dキャンバス */
+    /* 2Dキャンバス 350px */
     .canvas-container { position: relative; width: 100%; height: 350px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
@@ -94,16 +111,35 @@
     #mobile-resizer { display: none; justify-content: center; align-items: center; height: 24px; background: #333; cursor: row-resize; border-top: 1px solid #555; touch-action: none; z-index: 50; }
     #mobile-resizer::after { content: '＝'; color: #888; font-weight: bold; }
     
+    /* ★ スマホ縦UI用 強制レイアウト ★ */
     @media (max-width: 900px) {
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
       
-      /* 3D表示領域のCSSを過去版(安定版)へ復元 */
-      #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
+      /* ビューポート：絶対に余白を埋めさせ、高さ0にならないようにする */
+      #viewport-container { 
+        display: flex !important; 
+        order: 2; 
+        flex: 1 1 0% !important; 
+        height: auto !important;
+        min-height: 250px !important; 
+      }
       
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
+      
+      /* パネル：flexboxで潰されないように flex: 0 0 [高さ] で固定する */
+      #sidebar, #right-sidebar { 
+        order: 4; 
+        width: 100% !important; 
+        max-width: none; 
+        flex: 0 0 var(--bottom-panel-height) !important;
+        height: var(--bottom-panel-height) !important; 
+        border: none; 
+        border-top: 1px solid #444; 
+        padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; 
+      }
+
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
       body.tab-label #det-label { display: block !important; }
@@ -151,7 +187,7 @@
     const CONFIG = {
       SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      
       SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE',
-      GEMINI_API_KEY: ''
+      GEMINI_API_KEY: ''     
     };
   </script>
 
@@ -179,7 +215,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.5</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.6</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -395,6 +431,7 @@
     };
     window.addEventListener('pointerup', stopResize); window.addEventListener('pointercancel', stopResize);
 
+    // ★ タブ切り替え時のリサイズ反映を堅牢化 ★
     function setMobileTab(tabName) {
       document.body.className = document.body.className.replace(/tab-\w+/g, '');
       if (document.body.classList.contains('viewer-mode')) document.body.classList.add('viewer-mode'); 
@@ -402,8 +439,13 @@
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
       const activeBtn = document.querySelector(`.nav-btn[onclick="setMobileTab('${tabName}')"]`);
       if (activeBtn) activeBtn.classList.add('active');
-      setTimeout(onWindowResize, 50); 
+      
+      // DOMの反映を待ってから複数回リサイズを呼び出す
+      setTimeout(onWindowResize, 10); 
+      setTimeout(onWindowResize, 100); 
+      setTimeout(onWindowResize, 300);
     }
+    
     function toggleFlatModeMobile() { const flatEl = document.getElementById('flatPolygonToggle'); if (flatEl) { flatEl.checked = !flatEl.checked; initShapeUI(); } }
     function updateMobileFlatButton() {
       const btn = document.getElementById('mobile-flat-toggle'), flatEl = document.getElementById('flatPolygonToggle');
@@ -529,7 +571,6 @@
 
       const is2DFlat = isCurrentFlatMode();
       if (is2DFlat) {
-        // 平面(2D)化したとき、立体における中心を挟んでいる対頂点の関係を維持する
         let paired = new Set();
         let pairs = [];
         let singles = [];
@@ -549,7 +590,6 @@
           if(!found) singles.push(activeVerts[i]);
         }
 
-        // 仮想的な軸の数 L (ペアは1軸で2点、単独は1軸で1点使用)
         let L = pairs.length + singles.length;
         let axisIdx = 0;
         
@@ -619,7 +659,6 @@
       }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
 
-      // ラベル編集の順番は対頂関係が上下に並ぶのを維持する
       let pairedInit = new Set();
       let pairsInit = [];
       let singlesInit = [];
@@ -828,7 +867,7 @@
       }
     }
 
-    // --- クラウド・API連携 (定数使用) ---
+    // --- クラウド・API連携 ---
     function getSupabaseClient() {
       const url = CONFIG.SUPABASE_URL;
       const key = CONFIG.SUPABASE_ANON_KEY;
@@ -951,7 +990,6 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = innerP.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -996,7 +1034,6 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = vec3Array.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -1116,9 +1153,7 @@
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       const cx = canvas.width / 2;
-      // 左上の凡例（ジャンル・名前）と頂点ラベルの重なりを回避するため、図形の中心を下に 40px ずらす
       const cy = canvas.height / 2 + 40; 
-      // 中心をずらした分、図形が下にはみ出さないようスケールを調整
       const scale = Math.min(cx, canvas.height - cy - 10) * 0.75; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
@@ -1132,12 +1167,10 @@
         U = new THREE.Vector3().crossVectors(up,N).normalize(); V = new THREE.Vector3().crossVectors(N,U).normalize();
       }
 
-      // --- 投影平面での生座標（原点基準）を計算 ---
       const basePtsRaw = activeVerts.map((v, i) => {
         return { index: i, tx: v.v[0]*U.x + v.v[1]*U.y + v.v[2]*U.z, ty: v.v[0]*V.x + v.v[1]*V.y + v.v[2]*V.z };
       });
 
-      // 凸包取得
       const getHull = (pts) => {
         if(pts.length<=3) return pts.map(p=>p.index);
         let allClose = true;
@@ -1152,27 +1185,20 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // 投影によってできる図形が△、◇、⬠、⬡ のように、頂角が必ず真上（12時方向）を向くように回転させる
       let rotateAngle = 0;
       let targetTopIdx = flatMode ? 0 : activeVerts.findIndex(v => v.id === document.getElementById('planeSelect').value);
       if (targetTopIdx === -1) targetTopIdx = 0;
 
       let refPt = null;
       if (flatMode) {
-          // 平面時は最初の頂点を真上に向ける
           refPt = basePtsRaw[targetTopIdx];
       } else {
-          // 3D見下ろし時は、ターゲット(見下ろしている頂点)自身は中心(0,0)になるため、
-          // それ以外の最初の外周頂点を真上に向けることで自然な正多角形にする
           let candidates = basePtsRaw.filter(p => Math.sqrt(p.tx*p.tx + p.ty*p.ty) > 1e-4);
-          if (candidates.length > 0) {
-              refPt = candidates[0]; // 一番若い頂点
-          }
+          if (candidates.length > 0) refPt = candidates[0];
       }
 
       if (refPt) {
           const currentAngle = Math.atan2(refPt.ty, refPt.tx);
-          // 2DキャンバスはY軸下向きなので、-Math.PI / 2 が真上(12時)となる
           rotateAngle = -Math.PI / 2 - currentAngle; 
       }
 
@@ -1189,7 +1215,6 @@
          return {index: i, u: p.u, v: p.v};
       });
 
-      // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
       let perimIdx;
       if (flatMode) {
           const angles = basePoints2D.map(p => ({
@@ -1292,7 +1317,15 @@
       }
     }
 
-    function onWindowResize() { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); updatePlot(); }
+    // ★ リサイズの安定化 ★
+    function onWindowResize() { 
+      // 完全に潰れている時は何もしない (エラー回避)
+      if(container.clientWidth === 0 || container.clientHeight === 0) return;
+      camera.aspect = container.clientWidth / container.clientHeight; 
+      camera.updateProjectionMatrix(); 
+      renderer.setSize(container.clientWidth, container.clientHeight); 
+      updatePlot(); 
+    }
     window.addEventListener('resize', onWindowResize);
 
     // --- エクスポート ---
