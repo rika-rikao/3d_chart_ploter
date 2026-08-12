@@ -7,12 +7,11 @@
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    /* スマホブラウザのアドレスバー対策で 100dvh を追加 */
-    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; height: 100dvh; background: #1a1a1a; color: #fff; overflow: hidden; }
+    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
     
     /* サイドバー類 (下部の余白を広く確保) */
     #sidebar, #right-sidebar {
-      width: 350px; min-width: 250px; height: 100%; background: #2a2a2a; 
+      width: 350px; min-width: 250px; height: 100vh; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; overflow-y: auto; position: relative;
     }
     #sidebar { padding: 15px 20px calc(40px + env(safe-area-inset-bottom)) 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); }
@@ -29,10 +28,9 @@
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
     body.is-resizing #drag-overlay { display: block; }
 
-    /* 3Dビューポート (確実に表示させるための絶対配置レイアウトに改修) */
-    #viewport-container { flex: 1 1 auto; position: relative; display: block; width: 100%; height: 100%; min-height: 200px; z-index: 1; overflow: hidden; }
-    #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-    #viewport canvas { display: block; width: 100% !important; height: 100% !important; }
+    /* 3Dビューポート (過去の安定動作コードへ復元) */
+    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; }
+    #viewport { flex: 1; position: relative; }
 
     #viewport-legend {
       position: absolute;
@@ -66,7 +64,7 @@
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    /* 2Dキャンバス 350px */
+    /* 2Dキャンバス */
     .canvas-container { position: relative; width: 100%; height: 350px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
@@ -101,13 +99,11 @@
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
       
-      /* ビューポートが潰れるのを絶対に防ぐための強制レイアウト指定 */
-      #viewport-container { order: 2; flex: 1 1 0% !important; min-height: 30vh !important; }
+      /* 3D表示領域のCSSを過去版(安定版)へ復元 */
+      #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
       
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      /* サイドバーがビューポートを押し潰さないよう flex 制限をかける */
-      #sidebar, #right-sidebar { order: 4; flex: 0 0 var(--bottom-panel-height) !important; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
-      
+      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
       body.tab-label #det-label { display: block !important; }
@@ -137,7 +133,6 @@
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <script>
-    // Service Worker の登録
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
@@ -154,9 +149,9 @@
     // ☁️ クラウド連携設定 (ここにハードコード)
     // ==========================================
     const CONFIG = {
-      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      // 例: 'https://xxx.supabase.co'
-      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE', // 例: 'eyJ...'
-      GEMINI_API_KEY: ''     // 例: 'AIzaSy...'
+      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE',
+      GEMINI_API_KEY: ''
     };
   </script>
 
@@ -246,7 +241,6 @@
               <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
-            <!-- AI分析ボタンは目立たないように配置 -->
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
               <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析 (Option)</button>
             </div>
@@ -535,7 +529,7 @@
 
       const is2DFlat = isCurrentFlatMode();
       if (is2DFlat) {
-        // [MUST MAINTAIN] 平面(2D)化したとき、立体における中心を挟んでいる対頂点の関係を維持する
+        // 平面(2D)化したとき、立体における中心を挟んでいる対頂点の関係を維持する
         let paired = new Set();
         let pairs = [];
         let singles = [];
@@ -625,7 +619,7 @@
       }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
 
-      // [MUST MAINTAIN] ラベル編集の順番は対頂関係が上下に並ぶのを維持する
+      // ラベル編集の順番は対頂関係が上下に並ぶのを維持する
       let pairedInit = new Set();
       let pairsInit = [];
       let singlesInit = [];
@@ -957,7 +951,7 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
+        // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = innerP.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -1002,7 +996,7 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
+        // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
         let angles = vec3Array.map((v, i) => ({ idx: i, angle: Math.atan2(v.z, v.x) }));
         angles.sort((a,b) => a.angle - b.angle);
         const hullIdx = angles.map(a => a.idx);
@@ -1158,7 +1152,7 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // [MUST MAINTAIN] 投影によってできる図形が△、◇、⬠、⬡ のように、頂角が必ず真上（12時方向）を向くように回転させる
+      // 投影によってできる図形が△、◇、⬠、⬡ のように、頂角が必ず真上（12時方向）を向くように回転させる
       let rotateAngle = 0;
       let targetTopIdx = flatMode ? 0 : activeVerts.findIndex(v => v.id === document.getElementById('planeSelect').value);
       if (targetTopIdx === -1) targetTopIdx = 0;
@@ -1195,7 +1189,7 @@
          return {index: i, u: p.u, v: p.v};
       });
 
-      // [MUST MAINTAIN] 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
+      // 平面化モードでは、外周を綺麗に結ぶため（交差して星型にならないよう）角度順でソートする
       let perimIdx;
       if (flatMode) {
           const angles = basePoints2D.map(p => ({
@@ -1298,21 +1292,8 @@
       }
     }
 
-    function onWindowResize() {
-      // 0除算によるカメラシステムの破損を防ぐ絶対的なプロテクト
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (w === 0 || h === 0) return;
-      
-      camera.aspect = w / h; 
-      camera.updateProjectionMatrix(); 
-      renderer.setSize(w, h); 
-      updatePlot(); 
-    }
+    function onWindowResize() { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); updatePlot(); }
     window.addEventListener('resize', onWindowResize);
-
-    // 初期化時にも安全なタイミングでリサイズ処理を走らせる
-    setTimeout(onWindowResize, 10);
 
     // --- エクスポート ---
     function prepareStateScript(isViewer) {
