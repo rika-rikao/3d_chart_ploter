@@ -46,7 +46,7 @@
       line-height: 1.6;
       text-shadow: 1px 1px 2px #000;
       border: 1px solid rgba(255,255,255,0.15);
-      display: none; /* JSで中身があれば表示 */
+      display: none;
     }
 
     /* UI要素 */
@@ -331,6 +331,15 @@
       document.getElementById('alert-modal').style.display = 'flex';
     }
 
+    // --- 角度順で外周を求める共通関数（星型凹みの維持に必要） ---
+    function getRadialIndices2D(activeVerts) {
+      const pts = activeVerts.map((vert, i) => {
+        return { index: i, angle: Math.atan2(vert.v[2], vert.v[0]) };
+      });
+      pts.sort((a, b) => a.angle - b.angle);
+      return pts.map(p => p.index);
+    }
+
     // リサイズ制御
     const sidebar = document.getElementById('sidebar'), resizer = document.getElementById('resizer');
     const rightSidebar = document.getElementById('right-sidebar'), resizerRight = document.getElementById('resizer-right');
@@ -410,12 +419,29 @@
     };
     function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
-    function generateCustomShape(n) {
+    function generateCustomShape(n, is2DFlat = false) {
       let points = [], faces = [], explicitEdges = null;
-      if (n < 4) {
+      if (is2DFlat || n < 4) {
+        // UI上で隣接するペア(0と1、2と3...)が、円周上で対角(180度反対)になるように配置
         explicitEdges = [];
-        for (let i = 0; i < n; i++) { points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/n - Math.PI/2), 0, Math.sin((2*Math.PI*i)/n - Math.PI/2))); if (n > 2) explicitEdges.push([i, (i+1)%n]); }
-        if (n === 2) explicitEdges = [[0, 1]]; else for (let i = 1; i < n - 1; i++) faces.push([0, i, i+1]);
+        const totalPairs = Math.ceil(n / 2);
+        for (let i = 0; i < n; i++) {
+          let pairIdx = Math.floor(i / 2);
+          let isSecond = (i % 2 !== 0);
+          let baseAngle = (2 * Math.PI * pairIdx) / totalPairs - Math.PI / 2;
+          if (isSecond) baseAngle += Math.PI; // 対向位置へ
+          points.push(new THREE.Vector3(Math.cos(baseAngle), 0, Math.sin(baseAngle)));
+        }
+        
+        if (n === 2) explicitEdges = [[0, 1]]; 
+        else {
+          // 2Dモデル用の明示的なエッジ(外周)を角度順に結んで定義
+          const ptsWithAngle = points.map((p, i) => ({ i, a: Math.atan2(p.z, p.x) }));
+          ptsWithAngle.sort((a, b) => a.a - b.a);
+          for (let k = 0; k < n; k++) {
+            explicitEdges.push([ptsWithAngle[k].i, ptsWithAngle[(k+1)%n].i]);
+          }
+        }
       } else {
         if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
         else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
@@ -433,7 +459,7 @@
           }
         }
       }
-      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z], _3dv:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
+      return { vertices: points.map((p,i) => ({ id:`vc${i}`, name:`頂点 ${i+1}`, defaultLabel:`要素 ${i+1}`, v:[p.x,p.y,p.z] })), faces: faces, edges: explicitEdges ? explicitEdges : getEdges(faces) };
     }
 
     function isCurrentFlatMode() { const e = document.getElementById('flatPolygonToggle'); if(e&&e.checked)return true; return document.getElementById('shapeSelect').value==='custom' && (parseInt(document.getElementById('customVertices').value)||12)<4; }
@@ -450,62 +476,15 @@
       let colorIdx = 0; const paired = new Set(); vertices.forEach(v => v.pairColor = ''); 
       for(let i=0; i<vertices.length; i++) {
         if(paired.has(i)) continue;
-        const v1 = new THREE.Vector3(...(v._3dv || vertices[i].v));
+        const v1 = new THREE.Vector3(...vertices[i].v);
         for(let j=i+1; j<vertices.length; j++) {
           if(paired.has(j)) continue;
-          if(v1.clone().add(new THREE.Vector3(...(vertices[j]._3dv || vertices[j].v))).length() < 0.1) {
+          if(v1.clone().add(new THREE.Vector3(...vertices[j].v)).length() < 0.1) {
             vertices[i].pairColor = vertices[j].pairColor = pairColorPalette[colorIdx % pairColorPalette.length];
             paired.add(i).add(j); colorIdx++; break;
           }
         }
       }
-    }
-
-    // 2D平面化時の対頂角スロット割当
-    function apply2DFlatMapping(vertices) {
-      let N = vertices.length;
-      let paired = new Set();
-      let pairs = [];
-      let singles = [];
-      for(let i=0; i<N; i++) {
-        if(paired.has(i)) continue;
-        let found = false;
-        const v1 = new THREE.Vector3(...vertices[i]._3dv);
-        for(let j=i+1; j<N; j++) {
-          if(paired.has(j)) continue;
-          if(v1.clone().add(new THREE.Vector3(...vertices[j]._3dv)).length() < 0.1) {
-            pairs.push([i, j]); paired.add(i).add(j); found = true; break;
-          }
-        }
-        if(!found) { singles.push(i); paired.add(i); }
-      }
-
-      let halfN = Math.floor(N / 2);
-      let slotAssigned = new Array(N).fill(false);
-      vertices.forEach(v => v._slot = -1);
-
-      let currentSlot = 0;
-      pairs.forEach(pair => {
-        while(currentSlot < N && slotAssigned[currentSlot]) currentSlot++;
-        let slot1 = currentSlot;
-        let slot2 = (slot1 + halfN) % N;
-        while(slotAssigned[slot2]) slot2 = (slot2 + 1) % N;
-        
-        vertices[pair[0]]._slot = slot1; vertices[pair[1]]._slot = slot2;
-        slotAssigned[slot1] = true; slotAssigned[slot2] = true;
-      });
-
-      singles.forEach(idx => {
-        let s = 0;
-        while(s < N && slotAssigned[s]) s++;
-        vertices[idx]._slot = s; slotAssigned[s] = true;
-      });
-
-      vertices.forEach(v => {
-        let angle = -Math.PI / 2 + (2 * Math.PI * v._slot) / N;
-        v.v = [Math.cos(angle), 0, Math.sin(angle)];
-        v._angle = angle;
-      });
     }
 
     // --- Three.js セットアップ ---
@@ -539,15 +518,9 @@
       const oldScoreMem = { ...scoreMemory };
       const oldHidden = { ...hiddenVertices };
 
-      if (type === 'custom') { 
-        shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2)); 
-      } else { 
-        shapeData = JSON.parse(JSON.stringify(SHAPES[type])); 
-        shapeData.vertices.forEach(v => { if(!v._3dv) v._3dv = [...v.v]; });
-      }
+      if (type === 'custom') { shapeData = generateCustomShape(Math.max(parseInt(document.getElementById('customVertices').value)||12, 2), is2DFlat); } 
+      else { shapeData = is2DFlat ? generateCustomShape({bipyramid:5,octahedron:6,hexahedron:8}[type]||4, true) : SHAPES[type]; }
       if(!shapeData.edges) shapeData.edges = getEdges(shapeData.faces);
-
-      if (is2DFlat) apply2DFlatMapping(shapeData.vertices);
       assignPairColors(shapeData.vertices);
 
       if (oldVertices && oldVertices.length === shapeData.vertices.length) {
@@ -731,40 +704,19 @@
     }
 
     // --- 3D 描画 ---
-    function getConvexHullIndices2D(points3D, vecU, vecV) {
-      if (points3D.length <= 3) return points3D.map((_, i) => i);
-      const pts = points3D.map((p, i) => ({ index: i, u: p.x*vecU.u + p.z*vecU.v, v: p.x*vecV.u + p.z*vecV.v }));
-      let allClose = true;
-      for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
-      if(allClose) return pts.map(p => p.index);
-
-      pts.sort((a,b) => a.u!==b.u ? a.u-b.u : a.v-b.v);
-      const cross = (o, a, b) => (a.u-o.u)*(b.v-o.v) - (a.v-o.v)*(b.u-o.u);
-      const lower = []; for(let i=0; i<pts.length; i++) { while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], pts[i])<=0) lower.pop(); lower.push(pts[i]); }
-      const upper = []; for(let i=pts.length-1; i>=0; i--) { while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], pts[i])<=0) upper.pop(); upper.push(pts[i]); }
-      lower.pop(); upper.pop(); 
-      const hull = lower.concat(upper).map(p=>p.index);
-      return hull.length >= 3 ? hull : points3D.map((_, i) => i);
-    }
-
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       if(activeVerts.length < 3) return;
       
       const isFlat = isCurrentFlatMode();
-      const innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
+      const posArr = [], innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
+      innerP.forEach(p => posArr.push(p.x, p.y, p.z));
+      
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-
       if(isFlat || innerP.length === 3) {
-        let hullIdx;
-        if (isFlat && activeVerts[0]._angle !== undefined) {
-          let angleInfos = activeVerts.map((v, i) => ({ idx: i, angle: v._angle }));
-          angleInfos.sort((a, b) => a.angle - b.angle);
-          hullIdx = angleInfos.map(a => a.idx);
-        } else {
-          hullIdx = getConvexHullIndices2D(innerP, {u:1,v:0}, {u:0,v:1}); 
-        }
+        // 角度順に外周を結ぶ
+        const hullIdx = getRadialIndices2D(activeVerts); 
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -805,14 +757,8 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        let hullIdx;
-        if (isFlat && activeVerts && activeVerts[0]._angle !== undefined) {
-          let angleInfos = activeVerts.map((v, i) => ({ idx: i, angle: v._angle }));
-          angleInfos.sort((a, b) => a.angle - b.angle);
-          hullIdx = angleInfos.map(a => a.idx);
-        } else {
-          hullIdx = getConvexHullIndices2D(vec3Array, {u:1,v:0}, {u:0,v:1}); 
-        }
+        // 角度順のインデックスを取得して星型（凹み）を正しくつなぐ
+        const hullIdx = getRadialIndices2D(activeVerts);
         
         const shape = new THREE.Shape();
         shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
@@ -930,6 +876,22 @@
       draw2DProjection(P_vecs, {x:cx,y:cy,z:cz}, compP_vecs_list, compCentroids, mainColorHex, faceOpacity, lineOpacity, activeVerts);
     }
 
+    // --- 2D 投影用の凸包計算（3D視点投影用） ---
+    function getConvexHullIndices(pts) {
+      if(pts.length<=3) return pts.map(p=>p.index);
+      let allClose = true;
+      for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
+      if(allClose) return pts.map(p => p.index);
+
+      const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
+      const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
+      const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
+      const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
+      lower.pop(); upper.pop(); 
+      const hull = lower.concat(upper).map(p=>p.index);
+      return hull.length >= 3 ? hull : pts.map(p=>p.index);
+    }
+
     function draw2DProjection(P_vecs, originPt, compP_vecs_list, compCentroids, mainHex, fOpacity, lOpacity, activeVerts) {
       const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
@@ -950,24 +912,12 @@
       const projectObj = (obj) => ({ u: cx+(obj.x*U.x+obj.y*U.y+obj.z*U.z)*scale, v: cy+(obj.x*V.x+obj.y*V.y+obj.z*V.z)*scale });
       const basePoints2D = activeVerts.map((v,i) => { const p=projectObj({x:v.v[0],y:v.v[1],z:v.v[2]}); return {index:i, u:p.u, v:p.v}; });
       
-      const getConvexHullIndices = (pts) => {
-        if(pts.length<=3) return pts.map(p=>p.index);
-        let allClose = true;
-        for(let i=1; i<pts.length; i++){ if(Math.abs(pts[i].u - pts[0].u) > 1e-4 || Math.abs(pts[i].v - pts[0].v) > 1e-4) { allClose = false; break; } }
-        if(allClose) return pts.map(p => p.index);
-
-        const sorted = pts.slice().sort((a,b)=>a.u!==b.u?a.u-b.u:a.v-b.v);
-        const cross=(o,a,b)=>(a.u-o.u)*(b.v-o.v)-(a.v-o.v)*(b.u-o.u);
-        const lower=[]; for(let i=0;i<sorted.length;i++){ while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],sorted[i])<=0) lower.pop(); lower.push(sorted[i]); }
-        const upper=[]; for(let i=sorted.length-1;i>=0;i--){ while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],sorted[i])<=0) upper.pop(); upper.push(sorted[i]); }
-        lower.pop(); upper.pop(); 
-        const hull = lower.concat(upper).map(p=>p.index);
-        return hull.length >= 3 ? hull : pts.map(p=>p.index);
-      };
-
-      const perimIdx = (flatMode && activeVerts[0]._angle !== undefined) 
-        ? activeVerts.map((v, i) => ({ idx: i, angle: v._angle })).sort((a, b) => a.angle - b.angle).map(a => a.idx)
-        : getConvexHullIndices(basePoints2D);
+      let perimIdx;
+      if (flatMode || activeVerts.length <= 3) {
+        perimIdx = getRadialIndices2D(activeVerts); // 平面モデルの場合は角度順(星型維持)
+      } else {
+        perimIdx = getConvexHullIndices(basePoints2D); // 立体モデルの斜め投影の場合は凸包
+      }
 
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
       perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
