@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.4</title>
+  <title>立体評価チャート・プロトタイプ v25.5</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; background: #1a1a1a; color: #fff; overflow: hidden; }
+    /* スマホブラウザのアドレスバー対策で 100dvh を追加 */
+    body { font-family: sans-serif; display: flex; flex-direction: row; height: 100vh; height: 100dvh; background: #1a1a1a; color: #fff; overflow: hidden; }
     
     /* サイドバー類 (下部の余白を広く確保) */
     #sidebar, #right-sidebar {
-      width: 350px; min-width: 250px; height: 100vh; background: #2a2a2a; 
+      width: 350px; min-width: 250px; height: 100%; background: #2a2a2a; 
       display: flex; flex-direction: column; gap: 10px; z-index: 10; overflow-y: auto; position: relative;
     }
     #sidebar { padding: 15px 20px calc(40px + env(safe-area-inset-bottom)) 15px; box-shadow: 2px 0 10px rgba(0,0,0,0.5); }
@@ -28,10 +29,10 @@
     #drag-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; cursor: col-resize; }
     body.is-resizing #drag-overlay { display: block; }
 
-    /* 3Dビューポート */
-    #viewport-container { flex: 1; position: relative; display: flex; flex-direction: column; height: 100vh; min-height: 0; }
-    #viewport { flex: 1; position: relative; width: 100%; height: 100%; min-height: 0; }
-    #viewport canvas { display: block; }
+    /* 3Dビューポート (確実に表示させるための絶対配置レイアウトに改修) */
+    #viewport-container { flex: 1 1 auto; position: relative; display: block; width: 100%; height: 100%; min-height: 200px; z-index: 1; overflow: hidden; }
+    #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #viewport canvas { display: block; width: 100% !important; height: 100% !important; }
 
     #viewport-legend {
       position: absolute;
@@ -99,11 +100,14 @@
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
-      /* 確実に高さを確保するために height を0にして flex: 1 で残りを占有させる */
-      #viewport-container { order: 2; flex: 1; min-height: 200px; height: 0; }
+      
+      /* ビューポートが潰れるのを絶対に防ぐための強制レイアウト指定 */
+      #viewport-container { order: 2; flex: 1 1 0% !important; min-height: 30vh !important; }
+      
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      /* スマホ表示時余白60px */
-      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
+      /* サイドバーがビューポートを押し潰さないよう flex 制限をかける */
+      #sidebar, #right-sidebar { order: 4; flex: 0 0 var(--bottom-panel-height) !important; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
+      
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
       body.tab-label #det-label { display: block !important; }
@@ -180,7 +184,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.4</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.5</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -1294,8 +1298,21 @@
       }
     }
 
-    function onWindowResize() { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); updatePlot(); }
+    function onWindowResize() {
+      // 0除算によるカメラシステムの破損を防ぐ絶対的なプロテクト
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w === 0 || h === 0) return;
+      
+      camera.aspect = w / h; 
+      camera.updateProjectionMatrix(); 
+      renderer.setSize(w, h); 
+      updatePlot(); 
+    }
     window.addEventListener('resize', onWindowResize);
+
+    // 初期化時にも安全なタイミングでリサイズ処理を走らせる
+    setTimeout(onWindowResize, 10);
 
     // --- エクスポート ---
     function prepareStateScript(isViewer) {
