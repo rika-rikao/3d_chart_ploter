@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.2</title>
+  <title>立体評価チャート・プロトタイプ v25.1</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,7 +64,6 @@
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    /* 2Dキャンバスを350pxに拡大 */
     .canvas-container { position: relative; width: 100%; height: 350px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
@@ -98,10 +97,11 @@
       body { flex-direction: column; }
       #resizer, #resizer-right { display: none !important; }
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
-      #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
+      /* 【改修】絶対に3Dモデルが表示されるよう領域を強力に確保 */
+      #viewport-container { order: 2; flex: 1 1 30%; min-height: 250px; height: auto; }
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      /* スマホ表示時は余白をさらに広く(60px)してホームバー干渉を完全回避 */
-      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
+      /* スマホ表示時は余白を広く確保しホームバー干渉を回避 */
+      #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; min-height: 150px; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
       body.tab-label #det-label { display: block !important; }
@@ -124,21 +124,10 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/ConvexGeometry.js"></script>
   <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- PWA設定 -->
+  <!-- PWA設定 -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a1a1a">
   <link rel="apple-touch-icon" href="icon-192.png">
-
-  <script>
-    // Service Worker の登録
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('SW registered:', reg))
-          .catch(err => console.log('SW registration failed:', err));
-      });
-    }
-  </script>
 </head>
 <body class="tab-config">
 
@@ -147,9 +136,9 @@
     // ☁️ クラウド連携設定 (ここにハードコード)
     // ==========================================
     const CONFIG = {
-      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',      // 例: 'https://xxx.supabase.co'
-      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE', // 例: 'eyJ...'
-      GEMINI_API_KEY: ''     // 例: 'AIzaSy...'
+      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co/rest/v1/',
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE',
+      GEMINI_API_KEY: ''
     };
   </script>
 
@@ -177,7 +166,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.2</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.1</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -239,7 +228,6 @@
               <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
-            <!-- AI分析ボタンは目立たないように配置 -->
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
               <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析 (Option)</button>
             </div>
@@ -384,8 +372,23 @@
     resizer.addEventListener('pointermove', (e) => { if(!isResizingLeft||window.innerWidth<=900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nw = e.clientX; if(nw>=250 && nw<=600) sidebar.style.width=`${nw}px`; onWindowResize(); }); });
     resizerRight.addEventListener('pointerdown', (e) => { isResizingRight = true; resizerRight.setPointerCapture(e.pointerId); document.body.classList.add('is-resizing'); });
     resizerRight.addEventListener('pointermove', (e) => { if(!isResizingRight||window.innerWidth<=900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nw = window.innerWidth - e.clientX; if(nw>=250 && nw<=600) rightSidebar.style.width=`${nw}px`; onWindowResize(); }); });
+    
+    // 【改修】スマホUIリサイズ時にビューポート(3Dモデル領域)が潰れないよう高度に保護する
     mobileResizer.addEventListener('pointerdown', (e) => { isResizingMobile = true; mobileResizer.setPointerCapture(e.pointerId); document.body.classList.add('is-resizing'); });
-    mobileResizer.addEventListener('pointermove', (e) => { if(!isResizingMobile||window.innerWidth>900)return; if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); resizeAnimationFrame = requestAnimationFrame(() => { let nh = window.innerHeight - e.clientY; if(nh>=150 && nh<=window.innerHeight-150) { document.documentElement.style.setProperty('--bottom-panel-height', `${nh}px`); onWindowResize(); }});});
+    mobileResizer.addEventListener('pointermove', (e) => { 
+      if(!isResizingMobile||window.innerWidth>900)return; 
+      if(resizeAnimationFrame) cancelAnimationFrame(resizeAnimationFrame); 
+      resizeAnimationFrame = requestAnimationFrame(() => { 
+        let navH = document.getElementById('mobile-nav') ? document.getElementById('mobile-nav').offsetHeight : 40;
+        let maxPanelHeight = window.innerHeight - 250 - navH; // 最低250pxは上部の3D用に残す
+        let nh = window.innerHeight - e.clientY; 
+        if(nh >= 150 && nh <= maxPanelHeight) { 
+          document.documentElement.style.setProperty('--bottom-panel-height', `${nh}px`); 
+          onWindowResize(); 
+        }
+      });
+    });
+    
     const stopResize = (e) => { 
       if(isResizingLeft) { isResizingLeft=false; try{resizer.releasePointerCapture(e.pointerId);}catch(e){} }
       if(isResizingRight) { isResizingRight=false; try{resizerRight.releasePointerCapture(e.pointerId);}catch(e){} }
@@ -514,6 +517,63 @@
       }
     }
 
+    // 【改修】平面(2D)化時に、3Dモデルで対頂となる関係（中心を通る線分の両端）を維持する。対頂を隣接させない。（絶対に削らないこと）
+    function get2DFlatCoordinates(originalVertices) {
+        const n = originalVertices.length;
+        let newCoords = new Array(n);
+        let center = new THREE.Vector3();
+        originalVertices.forEach(v => { center.add(new THREE.Vector3(...v.base_v)); });
+        center.divideScalar(n);
+        
+        let pairs = [];
+        let used = new Set();
+        // 3Dベース座標(base_v)から内積計算し、中心を挟んで反対側（-1に近い）ものをペアとみなす
+        for (let i = 0; i < n; i++) {
+            if (used.has(i)) continue;
+            let v1 = new THREE.Vector3(...originalVertices[i].base_v).sub(center).normalize();
+            let bestPair = -1;
+            let minDot = 1;
+            for (let j = i + 1; j < n; j++) {
+                if (used.has(j)) continue;
+                let v2 = new THREE.Vector3(...originalVertices[j].base_v).sub(center).normalize();
+                let dot = v1.dot(v2);
+                if (dot < -0.8 && dot < minDot) {
+                    minDot = dot; bestPair = j;
+                }
+            }
+            if (bestPair !== -1) { pairs.push([i, bestPair]); used.add(i); used.add(bestPair); } 
+            else { pairs.push([i]); used.add(i); }
+        }
+        
+        let slots = new Array(n).fill(-1);
+        let half = Math.floor(n / 2);
+        let slotIdx = 0;
+        // ペアになっているものを2D円周上で対角(180度反対側)に配置
+        pairs.filter(p => p.length === 2).forEach(p => {
+            while (slots[slotIdx] !== -1 && slotIdx < half) slotIdx++;
+            if (slotIdx < half) {
+                slots[slotIdx] = p[0];
+                let opp = (slotIdx + half) % n;
+                if (slots[opp] === -1) slots[opp] = p[1];
+                else { let empty = slots.indexOf(-1); if(empty !== -1) slots[empty] = p[1]; }
+            } else {
+                let e1 = slots.indexOf(-1); if (e1 !== -1) slots[e1] = p[0];
+                let e2 = slots.indexOf(-1); if (e2 !== -1) slots[e2] = p[1];
+            }
+        });
+        pairs.filter(p => p.length === 1).forEach(p => { let e = slots.indexOf(-1); if (e !== -1) slots[e] = p[0]; });
+        
+        for (let i = 0; i < n; i++) {
+            let vIdx = slots[i];
+            if (vIdx !== -1) {
+                // 【絶対維持】投影された図形が△、◇などのように、頂角が真上（12時方向、-Math.PI/2）にくるようにする
+                let angle = (2 * Math.PI * i) / n - Math.PI / 2;
+                newCoords[vIdx] = [Math.cos(angle), 0, Math.sin(angle)];
+            }
+        }
+        return newCoords;
+    }
+
     // --- 頂点の再配置 ---
     function updateActiveCoordinates() {
       shapeData.vertices.forEach(v => {
@@ -527,93 +587,21 @@
 
       const is2DFlat = isCurrentFlatMode();
       let tempShape;
-      let target2DIndices = null; // 【改修】2D平面化時の対頂関係維持マッピング用
-
       if (is2DFlat) {
-        tempShape = generateCustomShape(n, true);
-
-        // 【機能堅持・改修】平面(2D)化したときに、3Dモデル同様、図形の中心を通って対頂となる関係は絶対に維持する。
-        // 対頂となっていたものを隣接させない。（構造上そうならざるを得ない奇数などの場合を除く）
-        // ※この機能はなぜか削られやすいので、確実に残せるように保護する。
-        if (n >= 4) {
-          const paired = new Set();
-          const pairs = [];
-          const singles = [];
-          for(let i = 0; i < n; i++) {
-            if (paired.has(i)) continue;
-            let bestJ = -1;
-            let minDot = Infinity;
-            // 3D状態での本来の向き（base_v）を元に比較
-            const vi = new THREE.Vector3(...activeVerts[i].base_v).normalize();
-            for(let j = i + 1; j < n; j++) {
-              if (paired.has(j)) continue;
-              const vj = new THREE.Vector3(...activeVerts[j].base_v).normalize();
-              const dot = vi.dot(vj);
-              // 最も反対を向いている（対頂）ペアを探す。内積が-0.5未満を条件とする
-              if (dot < -0.5 && dot < minDot) {
-                minDot = dot;
-                bestJ = j;
-              }
-            }
-            if (bestJ !== -1) {
-              pairs.push([i, bestJ]);
-              paired.add(i);
-              paired.add(bestJ);
-            } else {
-              singles.push(i);
-              paired.add(i);
-            }
-          }
-
-          const newOrder = new Array(n).fill(-1);
-          const half = Math.floor(n / 2);
-          let pairIdx = 0;
-          
-          // ペアをインデックスがN/2離れるように配置（2D円周上で確実に対頂になる）
-          for (let k = 0; k < half; k++) {
-            if (pairIdx < pairs.length) {
-              newOrder[k] = pairs[pairIdx][0];
-              newOrder[k + half] = pairs[pairIdx][1];
-              pairIdx++;
-            }
-          }
-          
-          let remaining = [];
-          while (pairIdx < pairs.length) {
-            remaining.push(pairs[pairIdx][0], pairs[pairIdx][1]);
-            pairIdx++;
-          }
-          remaining = remaining.concat(singles);
-          
-          // 空いているスロットに残りを割り当て
-          for (let k = 0; k < n; k++) {
-            if (newOrder[k] === -1 && remaining.length > 0) {
-              newOrder[k] = remaining.shift();
-            }
-          }
-
-          // 逆引きマッピング: 元のactiveVertsのi番目の要素が2D多角形で何番目（インデックス）になるかを保持
-          target2DIndices = new Array(n);
-          for (let k = 0; k < n; k++) {
-            target2DIndices[newOrder[k]] = k;
-          }
-        }
+        // 【改修】3D時の対頂関係を維持して2D平面上に配置する
+        const flatCoords = get2DFlatCoordinates(activeVerts);
+        activeVerts.forEach((v, i) => { v.v = [...flatCoords[i]]; });
       } else {
         if (n === 4) tempShape = SHAPES.tetrahedron;
         else if (n === 5) tempShape = SHAPES.bipyramid;
         else if (n === 6) tempShape = SHAPES.octahedron;
         else if (n === 8) tempShape = SHAPES.hexahedron;
         else tempShape = generateCustomShape(n, false);
-      }
-      
-      activeVerts.forEach((v, i) => {
-        // 対頂関係を維持するマッピングがある場合はそれに従う
-        if (is2DFlat && target2DIndices) {
-          v.v = [...tempShape.vertices[target2DIndices[i]].v];
-        } else {
+        
+        activeVerts.forEach((v, i) => {
           v.v = [...tempShape.vertices[i].v];
-        }
-      });
+        });
+      }
       assignPairColors(activeVerts);
     }
 
@@ -840,7 +828,7 @@
       }
     }
 
-    // --- クラウド・API連携 (定数使用) ---
+    // --- クラウド・API連携 ---
     function getSupabaseClient() {
       const url = CONFIG.SUPABASE_URL;
       const key = CONFIG.SUPABASE_ANON_KEY;
@@ -963,7 +951,12 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        const hullIdx = innerP.map((_, i) => i);
+        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画する。星型等への交差を防止。
+        let centroid = innerP.reduce((acc, p) => acc.clone().add(p), new THREE.Vector3()).divideScalar(innerP.length);
+        const hullIdx = innerP.map((_, i) => i).sort((a, b) => {
+          return Math.atan2(innerP[a].z - centroid.z, innerP[a].x - centroid.x) - Math.atan2(innerP[b].z - centroid.z, innerP[b].x - centroid.x);
+        });
+        
         const lineGeo = new THREE.BufferGeometry(); const lp = [];
         hullIdx.forEach(idx => lp.push(innerP[idx].x, innerP[idx].y, innerP[idx].z));
         lp.push(innerP[hullIdx[0]].x, innerP[hullIdx[0]].y, innerP[hullIdx[0]].z);
@@ -1004,7 +997,12 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        const hullIdx = vec3Array.map((_, i) => i);
+        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画する
+        let centroid = vec3Array.reduce((acc, p) => acc.clone().add(p), new THREE.Vector3()).divideScalar(vec3Array.length);
+        const hullIdx = vec3Array.map((_, i) => i).sort((a, b) => {
+          return Math.atan2(vec3Array[a].z - centroid.z, vec3Array[a].x - centroid.x) - Math.atan2(vec3Array[b].z - centroid.z, vec3Array[b].x - centroid.x);
+        });
+        
         const shape = new THREE.Shape();
         shape.moveTo(vec3Array[hullIdx[0]].x, vec3Array[hullIdx[0]].z);
         for(let i=1; i<hullIdx.length; i++) shape.lineTo(vec3Array[hullIdx[i]].x, vec3Array[hullIdx[i]].z);
@@ -1119,13 +1117,25 @@
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // 【改修】2D投影マップに置かれてる[ジャンル名]名前と頂点ラベルが重なるため、
-      // 2～3行下に図形を配置して左上のラベルとの重なりを回避。
-      const offsetY = 45; 
+      // 【改修】ジャンル名と図形が重ならないよう、凡例高さを計算して図形を下にオフセットする
+      const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
+      ctx.font = 'Bold 14px sans-serif';
+      let maxTextW = ctx.measureText(mText).width;
+      ctx.font = '11px sans-serif';
+      compareDataList.forEach(cData => {
+        if(cData.hidden) return;
+        maxTextW = Math.max(maxTextW, ctx.measureText(cData.metaData?.targetName || cData._filename || '比較').width + 20);
+      });
+      maxTextW = Math.max(maxTextW, ctx.measureText('(編集対象)').width + 20);
+      
+      const compCount = compareDataList.filter(c=>!c.hidden).length;
+      const bgHeight = 10 + 22 + (compCount + 1) * 16;
+      
+      const topOffset = bgHeight + 20; // 凡例高さ分だけ下げる
+      const availableHeight = canvas.height - topOffset;
       const cx = canvas.width / 2;
-      const cy = (canvas.height / 2) + offsetY;
-      // 下にはみ出さないようスケールを適切に縮小
-      const scale = Math.min(canvas.width / 2, (canvas.height / 2) - offsetY) * 0.8; 
+      const cy = topOffset + availableHeight / 2;
+      const scale = Math.min(cx, availableHeight / 2) * 0.7; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
 
@@ -1163,29 +1173,12 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // 【機能堅持】図形の外周（凸包）結線ロジックの改善。
-      // 対頂に配置した頂点同士が交差して星型にならないよう、2D平面化モード時は
-      // 「中心からの角度（atan2）順」に時計回りでソートして線を描画するよう修正。
-      // ※改修で削られやすいので、絶対にキープされるように保護。
-      let perimIdx;
-      if (flatMode) {
-        // 2Dモード時は凸包アルゴリズムではなく、中心からの角度順（atan2）で確実に外周を結ぶ
-        perimIdx = basePtsRaw.slice().sort((a, b) => {
-          return Math.atan2(a.ty, a.tx) - Math.atan2(b.ty, b.tx);
-        }).map(p => p.index);
-      } else if (activeVerts.length <= 3) {
-        perimIdx = activeVerts.map((_, i) => i);
-      } else {
-        perimIdx = getHull(basePtsRaw);
-      }
+      const perimIdx = (flatMode || activeVerts.length<=3) ? activeVerts.map((_,i)=>i) : getHull(basePtsRaw);
 
       // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
-      // 【機能堅持】2D投影マップにしたとき、投影によってできる図形が三角形のときは△、
-      // 正方形のときは◇、五角形のときは⬠、六角形のときは⬡……のように、
-      // 頂角が真上にくるようにする。この機能もいつの間にか削れるから絶対に維持できるようにする。
+      // 【絶対維持】投影によってできる図形が△、◇、⬠ などのように、頂角が真上（12時方向、-Math.PI/2）にくるようにする。
       let rotateAngle = 0;
       let minIdxPt = null;
-      // 頂角を真上に向けるため、外周頂点の中で最も若い(インデックスが小さい)頂点を基準とする
       perimIdx.forEach(idx => {
          const pt = basePtsRaw[idx];
          if (Math.sqrt(pt.tx*pt.tx + pt.ty*pt.ty) > 1e-4) {
@@ -1197,7 +1190,6 @@
         rotateAngle = -Math.PI / 2 - currentAngle; // -Math.PI/2 = 真上(12時)
       }
 
-      // 回転を適用する関数
       const projectObj = (obj) => {
         const px = obj.x*U.x + obj.y*U.y + obj.z*U.z;
         const py = obj.x*V.x + obj.y*V.y + obj.z*V.z;
@@ -1206,7 +1198,6 @@
         return { u: cx + rx * scale, v: cy + ry * scale };
       };
 
-      // 最終的な2D描画座標
       const basePoints2D = activeVerts.map((v,i) => {
          const p = projectObj({x:v.v[0], y:v.v[1], z:v.v[2]});
          return {index: i, u: p.u, v: p.v};
@@ -1255,19 +1246,7 @@
 
 
       // --- メタ情報 ＆ 凡例 (半透明の座布団付き) ---
-      const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
-      ctx.font = 'Bold 14px sans-serif';
-      let maxTextW = ctx.measureText(mText).width;
-      ctx.font = '11px sans-serif';
-      compareDataList.forEach(cData => {
-        if(cData.hidden) return;
-        maxTextW = Math.max(maxTextW, ctx.measureText(cData.metaData?.targetName || cData._filename || '比較').width + 20);
-      });
-      maxTextW = Math.max(maxTextW, ctx.measureText('(編集対象)').width + 20);
-      
-      const compCount = compareDataList.filter(c=>!c.hidden).length;
-      const bgHeight = 10 + 22 + (compCount + 1) * 16;
-      
+      // (高さは上部で計算済: bgHeight)
       ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
       ctx.fillRect(5, 5, maxTextW + 16, bgHeight);
 
