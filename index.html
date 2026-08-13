@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.5</title>
+  <title>立体評価チャート・プロトタイプ v25.6</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.5</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.6</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -1014,18 +1014,19 @@
       return sprite;
     }
 
-    function buildDynamicMesh3D(vec3Array, colorHex, faceOp, lineOp, group) {
+    function buildDynamicMesh3D(vec3Array, baseVec3Array, colorHex, faceOp, lineOp, group) {
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
         // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画。星型を防止。
         // 【絶対維持】外周辺だけの平面図形を形成。
+        // 修正：スコア0による位置の重なりを回避するため、スコア適用前の baseVec3Array を使ってソート順を決定する。
         const center = new THREE.Vector3();
-        vec3Array.forEach(p => center.add(p));
-        center.divideScalar(vec3Array.length);
+        baseVec3Array.forEach(p => center.add(p));
+        center.divideScalar(baseVec3Array.length);
         const hullIdx = vec3Array.map((_, i) => i).sort((a, b) => {
-            const angleA = Math.atan2(vec3Array[a].z - center.z, vec3Array[a].x - center.x);
-            const angleB = Math.atan2(vec3Array[b].z - center.z, vec3Array[b].x - center.x);
+            const angleA = Math.atan2(baseVec3Array[a].z - center.z, baseVec3Array[a].x - center.x);
+            const angleB = Math.atan2(baseVec3Array[b].z - center.z, baseVec3Array[b].x - center.x);
             return angleA - angleB;
         });
         const shape = new THREE.Shape();
@@ -1051,10 +1052,12 @@
     function updatePlot() {
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       const P_vecs = []; let sumX=0, sumY=0, sumZ=0;
+      const baseVecs = [];
       
       activeVerts.forEach(vert => {
         const s = scoreMemory[vert.id]||0; const px=vert.v[0]*s, py=vert.v[1]*s, pz=vert.v[2]*s;
         P_vecs.push(new THREE.Vector3(px,py,pz)); sumX+=px; sumY+=py; sumZ+=pz;
+        baseVecs.push(new THREE.Vector3(vert.v[0], vert.v[1], vert.v[2]));
       });
       
       const count = P_vecs.length || 1; let cx = sumX/count, cy = sumY/count, cz = sumZ/count;
@@ -1072,7 +1075,7 @@
       const faceOpacity = document.getElementById('faceOpacity')?parseFloat(document.getElementById('faceOpacity').value):0.4;
       const lineOpacity = document.getElementById('lineOpacity')?parseFloat(document.getElementById('lineOpacity').value):0.9;
 
-      buildDynamicMesh3D(P_vecs, mainColorHex, faceOpacity, lineOpacity, regionGroup);
+      buildDynamicMesh3D(P_vecs, baseVecs, mainColorHex, faceOpacity, lineOpacity, regionGroup);
 
       const compP_vecs_list = []; const compCentroids = [];
       compareDataList.forEach((cData, i) => {
@@ -1095,7 +1098,7 @@
         compCentroids.push({x:ccx, y:ccy, z:ccz});
         
         const colHex = document.getElementById(`compColor${i+1}`).value;
-        buildDynamicMesh3D(cv, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup);
+        buildDynamicMesh3D(cv, baseVecs, colHex, faceOpacity*0.75, lineOpacity*0.9, compareGroup);
         const cpMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06,32,32), new THREE.MeshBasicMaterial({color:colHex, depthTest:false})); cpMesh.renderOrder=9999;
         cpMesh.add(new THREE.Mesh(new THREE.SphereGeometry(0.12,32,32), new THREE.MeshBasicMaterial({color:colHex, transparent:true, opacity:0.4, depthTest:false})));
         cpMesh.position.set(ccx, ccy, ccz); compareGroup.add(cpMesh);
@@ -1266,7 +1269,7 @@
       ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
 
 
-      // --- メタ情報 ＆ 凡例 (半透明の座布団付き) ---
+      // --- メタ情報 ＆ 凡例 (2D投影マップ専用レイアウト) ---
       const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
       ctx.font = 'Bold 14px sans-serif';
       let maxTextW = ctx.measureText(mText).width;
@@ -1278,27 +1281,35 @@
       maxTextW = Math.max(maxTextW, ctx.measureText('(編集対象)').width + 20);
       
       const compCount = compareDataList.filter(c=>!c.hidden).length;
-      const bgHeight = 10 + 22 + (compCount + 1) * 16;
       
-      const offsetY = 45;
+      const titleHeight = 20;
+      const spacing = 36; // 2〜3行分下にずらす
+      const itemsHeight = (compCount + 1) * 16;
+      const bgHeight = 10 + titleHeight + spacing + itemsHeight;
+      
+      // 左上の上限に配置
+      const startX = 5;
+      const startY = 5;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-      ctx.fillRect(5, 5 + offsetY, maxTextW + 16, bgHeight);
+      ctx.fillRect(startX, startY, maxTextW + 16, bgHeight);
 
-      let legendY = 10 + offsetY;
+      let textY = startY + 10;
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-      ctx.fillText(mText, 10, legendY);
-      legendY += 22; ctx.font = '11px sans-serif';
+      ctx.fillText(mText, startX + 5, textY);
+      
+      textY += titleHeight + spacing; // ラベルと図を下にずらす
+      ctx.font = '11px sans-serif';
       
       compareDataList.forEach((cData, i) => {
         if(cData.hidden) return;
         const cHex = document.getElementById(`compColor${i+1}`).value;
-        ctx.fillStyle = cHex; ctx.fillRect(10, legendY, 12, 12);
-        ctx.fillStyle = '#ccc'; ctx.fillText(cData.metaData?.targetName || cData._filename || `比較${i+1}`, 26, legendY + 1);
-        legendY += 16;
+        ctx.fillStyle = cHex; ctx.fillRect(startX + 5, textY, 12, 12);
+        ctx.fillStyle = '#ccc'; ctx.fillText(cData.metaData?.targetName || cData._filename || `比較${i+1}`, startX + 21, textY + 1);
+        textY += 16;
       });
-      ctx.fillStyle = mainHex; ctx.fillRect(10, legendY, 12, 12);
-      ctx.fillStyle = '#ccc'; ctx.fillText(`(編集対象)`, 26, legendY + 1);
+      ctx.fillStyle = mainHex; ctx.fillRect(startX + 5, textY, 12, 12);
+      ctx.fillStyle = '#ccc'; ctx.fillText(`(編集対象)`, startX + 21, textY + 1);
     }
 
     async function exportAll2DMaps() {
