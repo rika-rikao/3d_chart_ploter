@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v26.1</title>
+  <title>立体評価チャート・プロトタイプ v26.2</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -173,7 +173,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.1</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.2</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -235,15 +235,32 @@
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
             
-            <!-- ベクトル分析・レコメンド機能 -->
-            <div class="control-group edit-only" style="margin-top: 10px;">
-              <label style="color:#00ffcc;">🔍 ベクトル分析・レコメンド (ポジション×ポテンシャル)</label>
-              <div class="row-group" style="gap:4px;">
-                <button class="secondary-btn" onclick="searchSimilarProducts('similar')" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff; font-size:11px; padding:6px 2px;">似た傾向</button>
-                <button class="secondary-btn" onclick="searchSimilarProducts('stronger')" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff; font-size:11px; padding:6px 2px;">同系統で強烈</button>
-                <button class="secondary-btn" onclick="searchSimilarProducts('opposite')" style="flex:1; background:#752a44; border-color:#853a54; color:#fff; font-size:11px; padding:6px 2px;">対極に挑戦</button>
+            <!-- ベクトル分析・レコメンド機能 (柔軟な設定版) -->
+            <div class="control-group edit-only" style="margin-top: 10px; background:#2a2a2a; padding:10px; border-radius:6px; border:1px solid #444;">
+              <label style="color:#00ffcc; font-weight:bold; margin-bottom:4px;">🔍 レコメンド検索 (傾向 × 強さ)</label>
+              
+              <div class="control-group" style="margin-bottom:8px;">
+                <label style="color:#ccc;">1. 求める方向性 (キャラクター)</label>
+                <div class="row-group" style="gap:4px;">
+                  <button id="btn_mode_similar" class="secondary-btn" onclick="setSearchMode('similar')" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff; font-size:11px;">同系統 (似た傾向)</button>
+                  <button id="btn_mode_opposite" class="secondary-btn" onclick="setSearchMode('opposite')" style="flex:1; background:#444; border-color:#555; color:#aaa; font-size:11px;">対極 (真逆の傾向)</button>
+                </div>
               </div>
-              <div id="similar_results_area" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;"></div>
+              
+              <div class="control-group" style="margin-bottom:8px; background:#222; padding:8px; border-radius:4px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                  <label style="color:#ccc;">2. 求めるポテンシャル (強さ)</label>
+                  <span id="pot_val_label" style="font-size:12px; color:#00ffcc; font-weight:bold;">同等</span>
+                </div>
+                <input type="range" id="pot_slider" min="1" max="5" step="1" value="3" oninput="updatePotLabel(); executeSearch();">
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#888; padding-top:2px;">
+                  <span>低い</span><span>やや低</span><span>同等</span><span>やや高</span><span>高い</span>
+                </div>
+              </div>
+              
+              <button class="primary-btn" onclick="executeSearch()" style="width:100%;">検索を実行 (最大10件)</button>
+              
+              <div id="similar_results_area" style="display:flex; flex-direction:column; gap:4px; margin-top:8px;"></div>
             </div>
 
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
@@ -1033,23 +1050,38 @@
       showModal("読込完了", `クラウドから ${data.length}件 のデータを取得・集計し、比較用に追加しました。<br>（AI分析に用いるメモ ${currentCloudMemos.length}件 を確保しました）`);
     }
 
-    function searchSimilarProducts(mode) {
-      if (cachedCloudData.length === 0) {
-        alert("クラウドデータを取得していません。先に「更新」ボタンを押してください。");
-        return;
+    // --- レコメンド検索関連 ---
+    let searchMode = 'similar';
+    const potLabels = ['低い', 'やや低い', '同等', 'やや高い', '高い'];
+
+    function setSearchMode(mode) {
+      searchMode = mode;
+      const btnSim = document.getElementById('btn_mode_similar');
+      const btnOpp = document.getElementById('btn_mode_opposite');
+      if (mode === 'similar') {
+        btnSim.style.background = '#2a755d'; btnSim.style.borderColor = '#3a856d'; btnSim.style.color = '#fff';
+        btnOpp.style.background = '#444'; btnOpp.style.borderColor = '#555'; btnOpp.style.color = '#aaa';
+      } else {
+        btnOpp.style.background = '#752a44'; btnOpp.style.borderColor = '#853a54'; btnOpp.style.color = '#fff';
+        btnSim.style.background = '#444'; btnSim.style.borderColor = '#555'; btnSim.style.color = '#aaa';
       }
+      executeSearch();
+    }
+
+    function updatePotLabel() {
+      const val = parseInt(document.getElementById('pot_slider').value);
+      document.getElementById('pot_val_label').innerText = potLabels[val - 1];
+    }
+
+    function executeSearch() {
+      if (cachedCloudData.length === 0) return;
       
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       if (activeVerts.length < 2) return;
 
-      // 自分の現在のポテンシャル(合計)とポジション(ベクトル)を計算
       let myPot = 0;
       let myPos = { x: 0, y: 0, z: 0 };
-      const myLabels = [];
-      
       activeVerts.forEach(v => {
-        const lName = labelMemory[v.id];
-        myLabels.push(lName);
         const s = scoreMemory[v.id] || 0;
         myPot += s;
         myPos.x += v.v[0] * s;
@@ -1061,17 +1093,19 @@
       const dotProduct = (v1, v2) => v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
       const myMag = magnitude(myPos);
 
+      const resArea = document.getElementById('similar_results_area');
+      
       if (myMag === 0) {
-        alert("現在のスコアのベクトル(ポジション)が0のため、傾向を計算できません。スコアを入力してください。");
+        resArea.innerHTML = '<span style="color:#ff5555; font-size:11px;">現在のスコアの方向(ポジション)が0のため計算できません。</span>';
         return;
       }
 
-      // クラウドの各商品の平均を算出
       const targetName = document.getElementById('meta_targetName').value;
       const targetStats = {};
+      
       cachedCloudData.forEach(d => {
         if (!d.target_name || !d.labels_data) return;
-        if (d.target_name === targetName) return; // 自身は除外
+        if (d.target_name === targetName) return; 
         
         if (!targetStats[d.target_name]) {
           targetStats[d.target_name] = { count: 0, sums: {}, genre: d.genre };
@@ -1081,8 +1115,11 @@
         });
         targetStats[d.target_name].count += 1;
       });
-
-      // クラウドデータと自分のベクトルを比較
+      
+      const sliderVal = parseInt(document.getElementById('pot_slider').value);
+      // slider=1 => -0.3, 2 => -0.15, 3 => 0, 4 => +0.15, 5 => +0.30 (頂点あたりの平均スコア差分ターゲット)
+      const targetPotDiffAvg = (sliderVal - 3) * 0.15;
+      
       const results = [];
       for (const [tName, stat] of Object.entries(targetStats)) {
         let cPot = 0;
@@ -1101,56 +1138,54 @@
           }
         });
 
-        // 半分以上のラベルが一致しているものだけ評価
         if (matchCount >= activeVerts.length * 0.5) {
           const cMag = magnitude(cPos);
           let cosSim = 0;
           if (cMag > 0) {
             cosSim = dotProduct(myPos, cPos) / (myMag * cMag);
           }
-          results.push({ name: tName, genre: stat.genre, pot: cPot, cosSim, matchCount });
+          
+          const potDiffAvg = (cPot - myPot) / activeVerts.length;
+          
+          // 最低限の方向性フィルタ
+          if (searchMode === 'similar' && cosSim < 0.2) continue;
+          if (searchMode === 'opposite' && cosSim > -0.2) continue;
+          
+          // 誤差関数の計算 (小さいほど理想に近い)
+          // 方向の誤差: 0.0 〜 2.0 (重要視するため重みx2)
+          let dirError = searchMode === 'similar' ? (1.0 - cosSim) : (cosSim + 1.0);
+          
+          // ポテンシャルの誤差: 0.0 〜 1.0程度
+          let potError = Math.abs(potDiffAvg - targetPotDiffAvg);
+          
+          const totalError = (dirError * 2.0) + potError;
+          results.push({ name: tName, genre: stat.genre, pot: cPot, cosSim, totalError });
         }
       }
-
-      // モード別にフィルタリング・ソート
-      let filtered = [];
-      let title = '';
       
-      if (mode === 'similar') {
-        title = '💡 似た傾向 (類似度が高い)';
-        // cosSimが1に近い順
-        filtered = results.sort((a, b) => b.cosSim - a.cosSim);
-      } else if (mode === 'stronger') {
-        title = '💪 同系統で強烈 (類似度高 ＆ ポテンシャル大)';
-        // 類似度がそこそこ高く(>0.7)、ポテンシャルが自分より大きいもの
-        filtered = results.filter(r => r.cosSim > 0.7 && r.pot > myPot)
-                          .sort((a, b) => b.pot - a.pot);
-      } else if (mode === 'opposite') {
-        title = '🔄 対極のキャラクター (全く別の傾向)';
-        // cosSimが-1に近い順
-        filtered = results.sort((a, b) => a.cosSim - b.cosSim);
-      }
-
-      const topResults = filtered.slice(0, 3);
-      const resArea = document.getElementById('similar_results_area');
+      results.sort((a, b) => a.totalError - b.totalError);
+      const topResults = results.slice(0, 10);
+      
       resArea.innerHTML = '';
-      
       if (topResults.length === 0) {
-        resArea.innerHTML = `<span style="color:#aaa; font-size:11px;">該当する品が見つかりませんでした。</span>`;
+        resArea.innerHTML = '<span style="color:#aaa; font-size:11px;">条件に合う品が見つかりませんでした。</span>';
         return;
       }
       
-      let html = `<span style="color:#00ffcc; font-weight:bold; font-size:12px;">${title}</span>`;
+      let html = `<div style="font-size:11px; color:#00ffcc; margin-bottom:4px;">上位 ${topResults.length} 件を表示:</div>`;
       topResults.forEach(res => {
         const simPercent = Math.round(res.cosSim * 100);
         const potStr = res.pot.toFixed(1);
+        let dirStr = searchMode === 'similar' ? `類似度 ${simPercent}%` : `対極度 ${-simPercent}%`;
+        const borderColor = searchMode === 'similar' ? '#2a755d' : '#752a44';
+        
         html += `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-radius:4px; font-size:11px;">
-            <div style="display:flex; flex-direction:column; gap:2px;">
-              <span>[${res.genre}] <b>${res.name}</b></span>
-              <span style="color:#888; font-size:10px;">類似度(方向): ${simPercent}% | ポテンシャル: ${potStr}</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-radius:4px; font-size:11px; border-left: 3px solid ${borderColor};">
+            <div style="display:flex; flex-direction:column; gap:2px; width:75%;">
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">[${res.genre}] <b>${res.name}</b></span>
+              <span style="color:#aaa; font-size:10px;">${dirStr} | ポテンシャル ${potStr}</span>
             </div>
-            <button class="secondary-btn" style="padding:4px 8px; font-size:10px; flex:none;" onclick="loadSpecificCloudCompareData('${res.genre}', '${res.name}')">比較</button>
+            <button class="secondary-btn" style="padding:4px 6px; font-size:10px; flex:none; margin-left:4px;" onclick="loadSpecificCloudCompareData('${res.genre}', '${res.name}')">比較</button>
           </div>
         `;
       });
