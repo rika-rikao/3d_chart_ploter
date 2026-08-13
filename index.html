@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.7</title>
+  <title>立体評価チャート・プロトタイプ v26.0</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -147,9 +147,9 @@
     // ☁️ クラウド連携設定 (ここにハードコード)
     // ==========================================
     const CONFIG = {
-      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co',      // 例: 'https://xxx.supabase.co'
-      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE', // 例: 'eyJ...'
-      GEMINI_API_KEY: ''     // 例: 'AIzaSy...'
+      SUPABASE_URL: 'https://gmyekaitehqivwqwkkld.supabase.co',
+      SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdteWVrYWl0ZWhxaXZ3cXdra2xkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1MzcyNzAsImV4cCI6MjEwMjExMzI3MH0.kSCrFq742Rfx-xaILxIXj84drOE1Lyy_C2_o0ZdL1DE',
+      GEMINI_API_KEY: ''
     };
   </script>
 
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.7</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.0</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -210,40 +210,49 @@
       </div>
 
       <details open id="det-compare-box">
-        <summary>データ比較機能 (最大4つ)</summary>
+        <summary>データ比較 ＆ クラウド連携</summary>
         <div class="section-content">
           <div class="row-group edit-only">
-            <button class="secondary-btn" style="flex:1;" onclick="document.getElementById('compareInput').click()">📁 ローカルデータ読込 (HTML/JSON/CSV)</button>
-            <input type="file" id="compareInput" accept=".html,.json,.csv" style="display:none;" onchange="handleCompareFile(event)">
-          </div>
-          <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
-        </div>
-      </details>
-
-      <details id="det-cloud">
-        <summary>☁️ クラウド連携 (Supabase & AI)</summary>
-        <div class="section-content edit-only">
-          <div class="row-group">
             <button class="primary-btn" onclick="saveToSupabase()" style="background:#55ffaa;">☁️ 現在のデータをクラウドへ送信</button>
           </div>
           <hr style="border:0; border-top:1px solid #444;">
-          <div class="control-group">
-            <label style="color:#00ffcc;">クラウドから平均データをロードして比較</label>
+          
+          <div class="row-group edit-only">
+            <button class="secondary-btn" style="flex:1;" onclick="document.getElementById('compareInput').click()">📁 ローカルデータ読込</button>
+            <input type="file" id="compareInput" accept=".html,.json,.csv" style="display:none;" onchange="handleCompareFile(event)">
+          </div>
+          <hr style="border:0; border-top:1px solid #444;">
+          
+          <div class="control-group edit-only">
+            <label style="color:#00ffcc;">☁️ クラウドからデータ検索・比較</label>
             <div class="row-group" style="gap:4px;">
-              <input type="text" id="cloud_search_genre" placeholder="ジャンル" list="dl_genres" style="flex:1;">
-              <input type="text" id="cloud_search_target" placeholder="対象名" list="dl_targets" style="flex:1;">
+              <input type="text" id="cloud_search_genre" placeholder="ジャンル" list="dl_genres" style="flex:1;" oninput="updateCloudSuggest()">
+              <input type="text" id="cloud_search_target" placeholder="対象名" list="dl_targets" style="flex:1;" oninput="updateCloudSuggest()">
             </div>
             <datalist id="dl_genres"></datalist>
             <datalist id="dl_targets"></datalist>
+            
+            <div id="cloud_suggest_area" style="font-size: 11.5px; color: #ddd; margin: 2px 0;"></div>
+
             <div class="row-group">
               <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
-            <!-- AI分析ボタンは目立たないように配置 -->
+            
+            <!-- 類似品検索 -->
+            <div class="row-group" style="margin-top: 5px;">
+               <button class="secondary-btn" onclick="searchSimilarProducts()" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff;">🔍 今のスコアと似た傾向の品を探す</button>
+            </div>
+            <div id="similar_results_area" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;"></div>
+
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
-              <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析 (Option)</button>
+              <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析</button>
             </div>
           </div>
+          
+          <hr style="border:0; border-top:1px solid #444;">
+          <label>▼ 比較中データ</label>
+          <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
         </div>
       </details>
 
@@ -457,8 +466,6 @@
     function generateCustomShape(n, is2DFlat = false, shapeType = 'custom') {
       let points = [], faces = [], explicitEdges = null;
       if (is2DFlat || n < 4) {
-        // 【絶対維持】平面(2D)化したときに、3dモデル同様、図形の中心を通って対頂となる(中心を通る線分の両端)関係は絶対に維持する。対頂となっていたものを隣接させない。確実に100%「真正面に配置」する。
-        // ※ 汎用的な対頂ペア検出と真正面配置アルゴリズムにより、どんな図形でも対向ペアをスロット n/2 離れた位置（真正面）に配置する。絶対にこのロジックを削らないこと。
         let temp3D;
         if (n === 4 && shapeType === 'tetrahedron') temp3D = SHAPES.tetrahedron;
         else if (n === 5 && shapeType === 'bipyramid') temp3D = SHAPES.bipyramid;
@@ -842,10 +849,15 @@
             </div>
           </div>`;
         });
+      } else {
+        listEl.innerHTML = '<span style="color:#666; font-size:12px;">比較データなし</span>';
       }
     }
 
-    // --- クラウド・API連携 (定数使用) ---
+    // --- クラウド・API連携 ---
+    let currentCloudMemos = [];
+    let cachedCloudData = [];
+
     function getSupabaseClient() {
       const url = CONFIG.SUPABASE_URL;
       const key = CONFIG.SUPABASE_ANON_KEY;
@@ -873,17 +885,86 @@
 
     async function fetchCloudList() {
       const sb = getSupabaseClient(); if(!sb) return;
-      const { data, error } = await sb.from('eval_charts_data').select('genre, target_name');
+      // 構成情報も含めて全件キャッシュ（1000件上限を想定）
+      const { data, error } = await sb.from('eval_charts_data').select('genre, target_name, labels_data');
       if(error) { console.error(error); return; }
+      cachedCloudData = data || [];
+      
       const genres = new Set(), targets = new Set();
-      data.forEach(d => { if(d.genre) genres.add(d.genre); if(d.target_name) targets.add(d.target_name); });
+      cachedCloudData.forEach(d => { if(d.genre) genres.add(d.genre); if(d.target_name) targets.add(d.target_name); });
       const dG = document.getElementById('dl_genres'); dG.innerHTML = '';
       genres.forEach(g => dG.innerHTML += `<option value="${g}">`);
       const dT = document.getElementById('dl_targets'); dT.innerHTML = '';
       targets.forEach(t => dT.innerHTML += `<option value="${t}">`);
+      
+      updateCloudSuggest();
     }
 
-    let currentCloudMemos = [];
+    function updateCloudSuggest() {
+      const genre = document.getElementById('cloud_search_genre').value;
+      const target = document.getElementById('cloud_search_target').value;
+      const area = document.getElementById('cloud_suggest_area');
+      if (!area) return;
+      area.innerHTML = '';
+      
+      if (!genre && !target) return;
+      
+      let filtered = cachedCloudData;
+      if(genre) filtered = filtered.filter(d => d.genre === genre);
+      if(target) filtered = filtered.filter(d => d.target_name === target);
+      
+      if(filtered.length === 0) return;
+      
+      const configCounts = {};
+      filtered.forEach(d => {
+        if(d.labels_data && Array.isArray(d.labels_data)) {
+          const names = d.labels_data.map(l => l.name).join(',');
+          configCounts[names] = (configCounts[names] || 0) + 1;
+        }
+      });
+      
+      let bestConfig = null; let maxC = 0;
+      for(const [k, v] of Object.entries(configCounts)) {
+        if(v > maxC) { maxC = v; bestConfig = k; }
+      }
+      
+      if(bestConfig) {
+        const labels = bestConfig.split(',');
+        area.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">💡 よく使われる評価軸:</span> ${labels.length}頂点 [${labels.join(', ')}] 
+          <button class="secondary-btn" style="padding: 2px 6px; font-size:10px; margin-left:4px; background:#444;" onclick="applyCloudLabels('${bestConfig}')">この評価軸を適用</button>`;
+      }
+    }
+
+    function applyCloudLabels(labelsStr) {
+      if(document.body.classList.contains('viewer-mode')) return;
+      const labels = labelsStr.split(',');
+      const n = labels.length;
+      if(n < 2) return;
+      
+      const sel = document.getElementById('shapeSelect');
+      if (n === 4) { sel.value = 'tetrahedron'; }
+      else if (n === 5) { sel.value = 'bipyramid'; }
+      else if (n === 6) { sel.value = 'octahedron'; }
+      else if (n === 8) { sel.value = 'hexahedron'; }
+      else { 
+        sel.value = 'custom'; 
+        document.getElementById('customVertices').value = n; 
+      }
+      
+      toggleCustomConfig();
+      initShapeUI();
+      
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      activeVerts.forEach((v, i) => {
+        if (i < n) {
+          labelMemory[v.id] = labels[i];
+          const el = document.getElementById(`label_${v.id}`);
+          if(el) el.value = labels[i];
+        }
+      });
+      saveMemAndPlot();
+    }
+
     async function loadCloudCompareData() {
       if(compareDataList.length >= 4) { alert("比較データは最大4つまでです。"); return; }
       const sb = getSupabaseClient(); if(!sb) return;
@@ -898,6 +979,29 @@
       if(error) { showModal("読込エラー", error.message); return; }
       if(!data || data.length === 0) { alert("該当するデータがありません。"); return; }
       
+      // 代表構成の取得と初期状態チェックによる自動上書き
+      const configCounts = {};
+      data.forEach(d => {
+        if(d.labels_data && Array.isArray(d.labels_data)) {
+          const names = d.labels_data.map(l => l.name).join(',');
+          configCounts[names] = (configCounts[names] || 0) + 1;
+        }
+      });
+      let bestConfig = null; let maxC = 0;
+      for(const [k, v] of Object.entries(configCounts)) {
+        if(v > maxC) { maxC = v; bestConfig = k; }
+      }
+
+      let isInitial = true;
+      const activeVertsCheck = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      activeVertsCheck.forEach(v => {
+        if (labelMemory[v.id] !== v.defaultLabel) isInitial = false;
+      });
+
+      if (isInitial && bestConfig) {
+        applyCloudLabels(bestConfig);
+      }
+
       const labelSums = {}; const labelCounts = {};
       currentCloudMemos = [];
       data.forEach(row => {
@@ -928,6 +1032,82 @@
       compareDataList.push(importedState);
       renderCompareList(); updatePlot();
       showModal("読込完了", `クラウドから ${data.length}件 のデータを取得・集計し、比較用に追加しました。<br>（AI分析に用いるメモ ${currentCloudMemos.length}件 を確保しました）`);
+    }
+
+    function searchSimilarProducts() {
+      if (cachedCloudData.length === 0) {
+        alert("クラウドデータを取得していません。先に「更新」ボタンを押してください。");
+        return;
+      }
+      
+      const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
+      const myLabels = activeVerts.map(v => labelMemory[v.id]);
+      const myScores = {};
+      activeVerts.forEach(v => { myScores[labelMemory[v.id]] = scoreMemory[v.id]; });
+      
+      const targetName = document.getElementById('meta_targetName').value;
+      
+      const targetStats = {};
+      cachedCloudData.forEach(d => {
+        if (!d.target_name || !d.labels_data) return;
+        if (d.target_name === targetName) return; // 自身は除外
+        
+        if (!targetStats[d.target_name]) {
+          targetStats[d.target_name] = { count: 0, sums: {}, genre: d.genre };
+        }
+        
+        d.labels_data.forEach(ld => {
+          targetStats[d.target_name].sums[ld.name] = (targetStats[d.target_name].sums[ld.name] || 0) + ld.score;
+        });
+        targetStats[d.target_name].count += 1;
+      });
+      
+      const similarities = [];
+      for (const [tName, stat] of Object.entries(targetStats)) {
+        let distanceSum = 0; let matchCount = 0;
+        myLabels.forEach(lName => {
+          if (stat.sums[lName] !== undefined) {
+            const avgScore = stat.sums[lName] / stat.count;
+            const diff = myScores[lName] - avgScore;
+            distanceSum += diff * diff;
+            matchCount++;
+          }
+        });
+        
+        // 少なくとも半分以上のラベルが共通しているものだけを評価
+        if (matchCount > 0 && matchCount >= myLabels.length * 0.5) {
+          const avgDistance = Math.sqrt(distanceSum) / matchCount;
+          similarities.push({ name: tName, genre: stat.genre, distance: avgDistance, matchCount });
+        }
+      }
+      
+      similarities.sort((a, b) => a.distance - b.distance);
+      const topResults = similarities.slice(0, 3);
+      
+      const resArea = document.getElementById('similar_results_area');
+      resArea.innerHTML = '';
+      
+      if (topResults.length === 0) {
+        resArea.innerHTML = '<span style="color:#aaa; font-size:11px;">似た傾向の品が見つかりませんでした。</span>';
+        return;
+      }
+      
+      let html = '<span style="color:#00ffcc; font-weight:bold; font-size:12px;">💡 おすすめ (似たスコア傾向の品):</span>';
+      topResults.forEach(res => {
+        html += `
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-radius:4px; font-size:11px;">
+            <span>[${res.genre}] ${res.name} <span style="color:#888;">(誤差: ${res.distance.toFixed(2)})</span></span>
+            <button class="secondary-btn" style="padding:2px 6px; font-size:10px;" onclick="loadSpecificCloudCompareData('${res.genre}', '${res.name}')">比較</button>
+          </div>
+        `;
+      });
+      resArea.innerHTML = html;
+    }
+
+    function loadSpecificCloudCompareData(genre, targetName) {
+      document.getElementById('cloud_search_genre').value = genre || '';
+      document.getElementById('cloud_search_target').value = targetName || '';
+      loadCloudCompareData();
     }
 
     async function analyzeCloudMemos() {
@@ -968,8 +1148,6 @@
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
       if(isFlat || innerP.length === 3) {
-        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画する。対頂が交差して星型になるのを防ぐ。
-        // 【絶対維持】隣接する頂点を結んだ外周辺だけの平面図形が形成されるロジック。
         const center = new THREE.Vector3(0,0,0);
         innerP.forEach(p => center.add(p));
         center.divideScalar(innerP.length);
@@ -1018,9 +1196,6 @@
       if(vec3Array.length < 3) return;
       const isFlat = isCurrentFlatMode();
       if(isFlat || vec3Array.length === 3) {
-        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして線を描画。星型を防止。
-        // 【絶対維持】外周辺だけの平面図形を形成。
-        // 修正：スコア0による位置の重なりを回避するため、スコア適用前の baseVec3Array を使ってソート順を決定する。
         const center = new THREE.Vector3();
         baseVec3Array.forEach(p => center.add(p));
         center.divideScalar(baseVec3Array.length);
@@ -1145,7 +1320,6 @@
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // --- 凡例（座布団）サイズの事前計算 ---
       const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
       ctx.font = 'Bold 14px sans-serif';
       let maxTextW = ctx.measureText(mText).width;
@@ -1159,15 +1333,13 @@
       const compCount = visibleCompares.length;
       const titleHeight = 20;
       const itemsHeight = (compCount + 1) * 16;
-      const bgHeight = 10 + titleHeight + itemsHeight; // 座布団の高さ
+      const bgHeight = 10 + titleHeight + itemsHeight; 
 
-      // 座布団の下端から2〜3行（40px）下に図形エリアを確保
       const legendBottomY = 5 + bgHeight;
       const mapMarginTop = 40; 
       const mapAreaTop = legendBottomY + mapMarginTop;
-      const mapAreaHeight = Math.max(10, canvas.height - mapAreaTop - 10); // 下部マージン10px
+      const mapAreaHeight = Math.max(10, canvas.height - mapAreaTop - 10); 
 
-      // 描画中心(cx, cy)とスケールの決定（下方にずらす）
       const cx = canvas.width / 2;
       const cy = mapAreaTop + mapAreaHeight / 2;
       const scale = Math.min(cx, mapAreaHeight / 2) * 0.7; 
@@ -1183,7 +1355,6 @@
         U = new THREE.Vector3().crossVectors(up,N).normalize(); V = new THREE.Vector3().crossVectors(N,U).normalize();
       }
 
-      // --- 投影平面での生座標（原点基準）を計算 ---
       const basePtsRaw = activeVerts.map((v, i) => {
         return {
           index: i,
@@ -1192,7 +1363,6 @@
         };
       });
 
-      // 凸包（外周）を抽出するためのヘルパー
       const getHull = (pts) => {
         if(pts.length<=3) return pts.map(p=>p.index);
         let allClose = true;
@@ -1208,10 +1378,8 @@
         return hull.length >= 3 ? hull : pts.map(p=>p.index);
       };
 
-      // 外周を構成する頂点インデックスを取得
       let perimIdx = [];
       if (flatMode || activeVerts.length <= 3) {
-        // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして結線。星型を防ぐ必須ロジック。
         const centerTx = basePtsRaw.reduce((sum, p) => sum + p.tx, 0) / basePtsRaw.length;
         const centerTy = basePtsRaw.reduce((sum, p) => sum + p.ty, 0) / basePtsRaw.length;
         const sorted = basePtsRaw.slice().sort((a, b) => {
@@ -1222,7 +1390,6 @@
         perimIdx = getHull(basePtsRaw);
       }
 
-      // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
       let rotateAngle = 0;
       let minIdxPt = null;
       perimIdx.forEach(idx => {
@@ -1233,10 +1400,9 @@
       });
       if (minIdxPt) {
         const currentAngle = Math.atan2(minIdxPt.ty, minIdxPt.tx);
-        rotateAngle = -Math.PI / 2 - currentAngle; // -Math.PI/2 = 真上(12時)
+        rotateAngle = -Math.PI / 2 - currentAngle; 
       }
 
-      // 回転を適用する関数
       const projectObj = (obj) => {
         const px = obj.x*U.x + obj.y*U.y + obj.z*U.z;
         const py = obj.x*V.x + obj.y*V.y + obj.z*V.z;
@@ -1245,13 +1411,11 @@
         return { u: cx + rx * scale, v: cy + ry * scale };
       };
 
-      // 最終的な2D描画座標
       const basePoints2D = activeVerts.map((v,i) => {
          const p = projectObj({x:v.v[0], y:v.v[1], z:v.v[2]});
          return {index: i, u: p.u, v: p.v};
       });
 
-      // 描画
       ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
       perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
       ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
@@ -1293,7 +1457,6 @@
       ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
 
 
-      // --- メタ情報 ＆ 凡例 (左上に配置) ---
       const startX = 5;
       const startY = 5;
 
@@ -1304,7 +1467,7 @@
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText(mText, startX + 5, textY);
       
-      textY += titleHeight; // タイトルのすぐ下へ
+      textY += titleHeight;
       ctx.font = '11px sans-serif';
       
       compareDataList.forEach((cData, i) => {
