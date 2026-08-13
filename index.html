@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v25.6</title>
+  <title>立体評価チャート・プロトタイプ v25.7</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -64,8 +64,8 @@
     textarea { resize: vertical; min-height: 80px; font-family: inherit; }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
     
-    /* 2Dキャンバスを350pxに拡大 */
-    .canvas-container { position: relative; width: 100%; height: 350px; background: #111; border: 1px solid #444; border-radius: 4px; }
+    /* 2Dキャンバスを図形が小さくなりすぎないように450pxに拡大 */
+    .canvas-container { position: relative; width: 100%; height: 450px; background: #111; border: 1px solid #444; border-radius: 4px; }
     #projection-canvas { width: 100%; height: 100%; }
 
     .drag-item { padding: 8px; background: #333; border: 1px dashed #555; border-radius: 4px; cursor: grab; display: flex; flex-direction: column; gap: 6px; transition: background 0.2s; }
@@ -177,7 +177,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.6</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v25.7</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -1144,7 +1144,33 @@
       const canvas = document.getElementById('projection-canvas'), ctx = canvas.getContext('2d');
       canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
       ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      const cx = canvas.width/2, cy = canvas.height/2, scale = Math.min(cx, cy)*0.7; 
+
+      // --- 凡例（座布団）サイズの事前計算 ---
+      const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
+      ctx.font = 'Bold 14px sans-serif';
+      let maxTextW = ctx.measureText(mText).width;
+      ctx.font = '11px sans-serif';
+      const visibleCompares = compareDataList.filter(c => !c.hidden);
+      visibleCompares.forEach(cData => {
+        maxTextW = Math.max(maxTextW, ctx.measureText(cData.metaData?.targetName || cData._filename || '比較').width + 20);
+      });
+      maxTextW = Math.max(maxTextW, ctx.measureText('(編集対象)').width + 20);
+      
+      const compCount = visibleCompares.length;
+      const titleHeight = 20;
+      const itemsHeight = (compCount + 1) * 16;
+      const bgHeight = 10 + titleHeight + itemsHeight; // 座布団の高さ
+
+      // 座布団の下端から2〜3行（40px）下に図形エリアを確保
+      const legendBottomY = 5 + bgHeight;
+      const mapMarginTop = 40; 
+      const mapAreaTop = legendBottomY + mapMarginTop;
+      const mapAreaHeight = Math.max(10, canvas.height - mapAreaTop - 10); // 下部マージン10px
+
+      // 描画中心(cx, cy)とスケールの決定（下方にずらす）
+      const cx = canvas.width / 2;
+      const cy = mapAreaTop + mapAreaHeight / 2;
+      const scale = Math.min(cx, mapAreaHeight / 2) * 0.7; 
 
       ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,scale,0,Math.PI*2); ctx.stroke();
 
@@ -1186,7 +1212,6 @@
       let perimIdx = [];
       if (flatMode || activeVerts.length <= 3) {
         // 【絶対維持】2D平面化モード時は「中心からの角度（atan2）順」に時計回りでソートして結線。星型を防ぐ必須ロジック。
-        // 【絶対維持】外周辺だけの図形が形成されるロジック。
         const centerTx = basePtsRaw.reduce((sum, p) => sum + p.tx, 0) / basePtsRaw.length;
         const centerTy = basePtsRaw.reduce((sum, p) => sum + p.ty, 0) / basePtsRaw.length;
         const sorted = basePtsRaw.slice().sort((a, b) => {
@@ -1198,7 +1223,6 @@
       }
 
       // --- 基準となる頂点を真上（-90度）に向けるための回転角度を計算 ---
-      // 【絶対維持】投影によってできる図形（三角形、四角形、五角形など）の頂角が真上に来るようにするロジック。
       let rotateAngle = 0;
       let minIdxPt = null;
       perimIdx.forEach(idx => {
@@ -1269,25 +1293,7 @@
       ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
 
 
-      // --- メタ情報 ＆ 凡例 (2D投影マップ専用レイアウト) ---
-      const mText = (metaData.genre ? `[${metaData.genre}] ` : '') + (metaData.targetName || '');
-      ctx.font = 'Bold 14px sans-serif';
-      let maxTextW = ctx.measureText(mText).width;
-      ctx.font = '11px sans-serif';
-      compareDataList.forEach(cData => {
-        if(cData.hidden) return;
-        maxTextW = Math.max(maxTextW, ctx.measureText(cData.metaData?.targetName || cData._filename || '比較').width + 20);
-      });
-      maxTextW = Math.max(maxTextW, ctx.measureText('(編集対象)').width + 20);
-      
-      const compCount = compareDataList.filter(c=>!c.hidden).length;
-      
-      const titleHeight = 20;
-      const spacing = 36; // 2〜3行分下にずらす
-      const itemsHeight = (compCount + 1) * 16;
-      const bgHeight = 10 + titleHeight + spacing + itemsHeight;
-      
-      // 左上の上限に配置
+      // --- メタ情報 ＆ 凡例 (左上に配置) ---
       const startX = 5;
       const startY = 5;
 
@@ -1298,7 +1304,7 @@
       ctx.fillStyle = '#ffffff'; ctx.font = 'Bold 14px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
       ctx.fillText(mText, startX + 5, textY);
       
-      textY += titleHeight + spacing; // ラベルと図を下にずらす
+      textY += titleHeight; // タイトルのすぐ下へ
       ctx.font = '11px sans-serif';
       
       compareDataList.forEach((cData, i) => {
