@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v26.0</title>
+  <title>立体評価チャート・プロトタイプ v26.1</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -100,7 +100,6 @@
       #mobile-nav { display: flex !important; order: 1; flex-shrink: 0; }
       #viewport-container { order: 2; flex: 1 1 auto; min-height: 200px; height: auto; }
       #mobile-resizer { display: flex !important; order: 3; flex-shrink: 0; }
-      /* スマホ表示時は余白をさらに広く(60px)してホームバー干渉を完全回避 */
       #sidebar, #right-sidebar { order: 4; width: 100% !important; max-width: none; height: var(--bottom-panel-height) !important; border: none; border-top: 1px solid #444; padding: 15px 15px calc(60px + env(safe-area-inset-bottom)) 15px; }
       .mobile-section { display: none !important; }
       body.tab-config #det-config { display: flex !important; flex-direction: column; gap:10px; }
@@ -130,12 +129,9 @@
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <script>
-    // Service Worker の登録
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('SW registered:', reg))
-          .catch(err => console.log('SW registration failed:', err));
+        navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
       });
     }
   </script>
@@ -177,7 +173,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.0</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.1</h3>
       <div class="row-group edit-only" style="gap:5px;">
         <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
         <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
@@ -239,11 +235,16 @@
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
             
-            <!-- 類似品検索 -->
-            <div class="row-group" style="margin-top: 5px;">
-               <button class="secondary-btn" onclick="searchSimilarProducts()" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff;">🔍 今のスコアと似た傾向の品を探す</button>
+            <!-- ベクトル分析・レコメンド機能 -->
+            <div class="control-group edit-only" style="margin-top: 10px;">
+              <label style="color:#00ffcc;">🔍 ベクトル分析・レコメンド (ポジション×ポテンシャル)</label>
+              <div class="row-group" style="gap:4px;">
+                <button class="secondary-btn" onclick="searchSimilarProducts('similar')" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff; font-size:11px; padding:6px 2px;">似た傾向</button>
+                <button class="secondary-btn" onclick="searchSimilarProducts('stronger')" style="flex:1; background:#2a755d; border-color:#3a856d; color:#fff; font-size:11px; padding:6px 2px;">同系統で強烈</button>
+                <button class="secondary-btn" onclick="searchSimilarProducts('opposite')" style="flex:1; background:#752a44; border-color:#853a54; color:#fff; font-size:11px; padding:6px 2px;">対極に挑戦</button>
+              </div>
+              <div id="similar_results_area" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;"></div>
             </div>
-            <div id="similar_results_area" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;"></div>
 
             <div class="row-group" style="justify-content: flex-end; margin-top:8px;">
               <button class="secondary-btn" onclick="analyzeCloudMemos()" style="font-size:11px; padding:4px 8px; flex:none; background:#333; border:1px solid #555; color:#ccc;">🤖 メモをAI分析</button>
@@ -885,7 +886,6 @@
 
     async function fetchCloudList() {
       const sb = getSupabaseClient(); if(!sb) return;
-      // 構成情報も含めて全件キャッシュ（1000件上限を想定）
       const { data, error } = await sb.from('eval_charts_data').select('genre, target_name, labels_data');
       if(error) { console.error(error); return; }
       cachedCloudData = data || [];
@@ -979,7 +979,6 @@
       if(error) { showModal("読込エラー", error.message); return; }
       if(!data || data.length === 0) { alert("該当するデータがありません。"); return; }
       
-      // 代表構成の取得と初期状態チェックによる自動上書き
       const configCounts = {};
       data.forEach(d => {
         if(d.labels_data && Array.isArray(d.labels_data)) {
@@ -1034,19 +1033,41 @@
       showModal("読込完了", `クラウドから ${data.length}件 のデータを取得・集計し、比較用に追加しました。<br>（AI分析に用いるメモ ${currentCloudMemos.length}件 を確保しました）`);
     }
 
-    function searchSimilarProducts() {
+    function searchSimilarProducts(mode) {
       if (cachedCloudData.length === 0) {
         alert("クラウドデータを取得していません。先に「更新」ボタンを押してください。");
         return;
       }
       
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
-      const myLabels = activeVerts.map(v => labelMemory[v.id]);
-      const myScores = {};
-      activeVerts.forEach(v => { myScores[labelMemory[v.id]] = scoreMemory[v.id]; });
+      if (activeVerts.length < 2) return;
+
+      // 自分の現在のポテンシャル(合計)とポジション(ベクトル)を計算
+      let myPot = 0;
+      let myPos = { x: 0, y: 0, z: 0 };
+      const myLabels = [];
       
+      activeVerts.forEach(v => {
+        const lName = labelMemory[v.id];
+        myLabels.push(lName);
+        const s = scoreMemory[v.id] || 0;
+        myPot += s;
+        myPos.x += v.v[0] * s;
+        myPos.y += v.v[1] * s;
+        myPos.z += v.v[2] * s;
+      });
+
+      const magnitude = (v) => Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+      const dotProduct = (v1, v2) => v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+      const myMag = magnitude(myPos);
+
+      if (myMag === 0) {
+        alert("現在のスコアのベクトル(ポジション)が0のため、傾向を計算できません。スコアを入力してください。");
+        return;
+      }
+
+      // クラウドの各商品の平均を算出
       const targetName = document.getElementById('meta_targetName').value;
-      
       const targetStats = {};
       cachedCloudData.forEach(d => {
         if (!d.target_name || !d.labels_data) return;
@@ -1055,49 +1076,81 @@
         if (!targetStats[d.target_name]) {
           targetStats[d.target_name] = { count: 0, sums: {}, genre: d.genre };
         }
-        
         d.labels_data.forEach(ld => {
           targetStats[d.target_name].sums[ld.name] = (targetStats[d.target_name].sums[ld.name] || 0) + ld.score;
         });
         targetStats[d.target_name].count += 1;
       });
-      
-      const similarities = [];
+
+      // クラウドデータと自分のベクトルを比較
+      const results = [];
       for (const [tName, stat] of Object.entries(targetStats)) {
-        let distanceSum = 0; let matchCount = 0;
-        myLabels.forEach(lName => {
+        let cPot = 0;
+        let cPos = { x: 0, y: 0, z: 0 };
+        let matchCount = 0;
+        
+        activeVerts.forEach(v => {
+          const lName = labelMemory[v.id];
           if (stat.sums[lName] !== undefined) {
             const avgScore = stat.sums[lName] / stat.count;
-            const diff = myScores[lName] - avgScore;
-            distanceSum += diff * diff;
+            cPot += avgScore;
+            cPos.x += v.v[0] * avgScore;
+            cPos.y += v.v[1] * avgScore;
+            cPos.z += v.v[2] * avgScore;
             matchCount++;
           }
         });
-        
-        // 少なくとも半分以上のラベルが共通しているものだけを評価
-        if (matchCount > 0 && matchCount >= myLabels.length * 0.5) {
-          const avgDistance = Math.sqrt(distanceSum) / matchCount;
-          similarities.push({ name: tName, genre: stat.genre, distance: avgDistance, matchCount });
+
+        // 半分以上のラベルが一致しているものだけ評価
+        if (matchCount >= activeVerts.length * 0.5) {
+          const cMag = magnitude(cPos);
+          let cosSim = 0;
+          if (cMag > 0) {
+            cosSim = dotProduct(myPos, cPos) / (myMag * cMag);
+          }
+          results.push({ name: tName, genre: stat.genre, pot: cPot, cosSim, matchCount });
         }
       }
+
+      // モード別にフィルタリング・ソート
+      let filtered = [];
+      let title = '';
       
-      similarities.sort((a, b) => a.distance - b.distance);
-      const topResults = similarities.slice(0, 3);
-      
+      if (mode === 'similar') {
+        title = '💡 似た傾向 (類似度が高い)';
+        // cosSimが1に近い順
+        filtered = results.sort((a, b) => b.cosSim - a.cosSim);
+      } else if (mode === 'stronger') {
+        title = '💪 同系統で強烈 (類似度高 ＆ ポテンシャル大)';
+        // 類似度がそこそこ高く(>0.7)、ポテンシャルが自分より大きいもの
+        filtered = results.filter(r => r.cosSim > 0.7 && r.pot > myPot)
+                          .sort((a, b) => b.pot - a.pot);
+      } else if (mode === 'opposite') {
+        title = '🔄 対極のキャラクター (全く別の傾向)';
+        // cosSimが-1に近い順
+        filtered = results.sort((a, b) => a.cosSim - b.cosSim);
+      }
+
+      const topResults = filtered.slice(0, 3);
       const resArea = document.getElementById('similar_results_area');
       resArea.innerHTML = '';
       
       if (topResults.length === 0) {
-        resArea.innerHTML = '<span style="color:#aaa; font-size:11px;">似た傾向の品が見つかりませんでした。</span>';
+        resArea.innerHTML = `<span style="color:#aaa; font-size:11px;">該当する品が見つかりませんでした。</span>`;
         return;
       }
       
-      let html = '<span style="color:#00ffcc; font-weight:bold; font-size:12px;">💡 おすすめ (似たスコア傾向の品):</span>';
+      let html = `<span style="color:#00ffcc; font-weight:bold; font-size:12px;">${title}</span>`;
       topResults.forEach(res => {
+        const simPercent = Math.round(res.cosSim * 100);
+        const potStr = res.pot.toFixed(1);
         html += `
           <div style="display:flex; justify-content:space-between; align-items:center; background:#333; padding:4px 8px; border-radius:4px; font-size:11px;">
-            <span>[${res.genre}] ${res.name} <span style="color:#888;">(誤差: ${res.distance.toFixed(2)})</span></span>
-            <button class="secondary-btn" style="padding:2px 6px; font-size:10px;" onclick="loadSpecificCloudCompareData('${res.genre}', '${res.name}')">比較</button>
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <span>[${res.genre}] <b>${res.name}</b></span>
+              <span style="color:#888; font-size:10px;">類似度(方向): ${simPercent}% | ポテンシャル: ${potStr}</span>
+            </div>
+            <button class="secondary-btn" style="padding:4px 8px; font-size:10px; flex:none;" onclick="loadSpecificCloudCompareData('${res.genre}', '${res.name}')">比較</button>
           </div>
         `;
       });
