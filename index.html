@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v27.1</title>
+  <title>立体評価チャート・プロトタイプ v27.2</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -162,6 +162,18 @@
     </div>
   </div>
 
+  <!-- 確認（はい・いいえ）モーダル -->
+  <div id="confirm-modal" class="overlay-modal">
+    <div class="modal-box">
+      <h3 id="confirm-title" style="color:#ffaa00; margin-bottom:15px;">確認</h3>
+      <div id="confirm-body" style="font-size:14px; margin-bottom:20px; line-height:1.6;"></div>
+      <div style="text-align:right; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="secondary-btn" onclick="document.getElementById('confirm-modal').style.display='none'">いいえ</button>
+        <button id="confirm-yes-btn" class="primary-btn">はい</button>
+      </div>
+    </div>
+  </div>
+
   <div id="mobile-nav">
     <button class="nav-btn active" onclick="setMobileTab('config')"><span class="icon">⚙️</span><span>設定/比較</span></button>
     <button class="nav-btn" onclick="setMobileTab('label')"><span class="icon">🏷️</span><span>対象/ラベル</span></button>
@@ -173,7 +185,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v27.1</h3>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v27.2</h3>
       
       <!-- 保存機能の統合 -->
       <div class="row-group edit-only" style="gap:5px; margin-bottom: 10px;">
@@ -327,7 +339,7 @@
         </div>
         <div class="control-group">
           <label>記録／評価対象の名前</label>
-          <input type="text" id="meta_targetName" value="品種名、商品名" oninput="saveMemAndPlot()">
+          <input type="text" id="meta_targetName" value="商品名など" oninput="saveMemAndPlot()">
         </div>
         <hr style="border:0; border-top:1px solid #444; margin:5px 0;">
         <div id="labels-container" class="control-group"></div>
@@ -350,7 +362,7 @@
 
   <div id="viewport-container">
     <div style="position:absolute; top:10px; right:10px; z-index:100; display:flex; flex-direction:column; gap:5px; align-items:flex-end;">
-      <button class="primary-btn edit-only" onclick="saveToSupabase()" style="background:#55ffaa; width:auto; padding:8px 12px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">☁️ データをDBへ追加</button>
+      <button class="primary-btn edit-only" onclick="confirmSaveToSupabase()" style="background:#55ffaa; width:auto; padding:8px 12px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">☁️ データをDBへ追加</button>
       <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="display:none; width:auto; padding:8px 12px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">🗺️ 平面(2D)化</button>
     </div>
     <div id="viewport-legend"></div>
@@ -406,12 +418,24 @@
       const r = parseInt(hex.slice(0, 2), 16), g = parseInt(hex.slice(2, 4), 16), b = parseInt(hex.slice(4, 6), 16);
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
+    
     function showModal(title, bodyHtml) {
       const titleEl = document.getElementById('alert-title');
       titleEl.innerText = title;
       titleEl.style.color = title.includes("エラー") ? "#ff5555" : "#00ffcc";
       document.getElementById('alert-body').innerHTML = bodyHtml;
       document.getElementById('alert-modal').style.display = 'flex';
+    }
+
+    function showConfirmModal(title, bodyHtml, onYes) {
+      const titleEl = document.getElementById('confirm-title');
+      titleEl.innerText = title;
+      document.getElementById('confirm-body').innerHTML = bodyHtml;
+      document.getElementById('confirm-yes-btn').onclick = () => {
+        document.getElementById('confirm-modal').style.display = 'none';
+        onYes();
+      };
+      document.getElementById('confirm-modal').style.display = 'flex';
     }
 
     // リサイズ制御
@@ -668,7 +692,8 @@
     let scoreMemory = {}; 
     let hiddenVertices = {}; 
     let compareDataList = []; 
-    let metaData = { genre: 'ジャンル名', targetName: '品種名、商品名' };
+    // 【改修点】ターゲット名の初期値を変更
+    let metaData = { genre: 'ジャンル名', targetName: '商品名など' };
 
     const pairColorPalette = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#9b5de5', '#00f5d4', '#f15bb5', '#fee440'];
     function assignPairColors(vertices) {
@@ -732,6 +757,22 @@
     const regionGroup = new THREE.Group(); scene.add(regionGroup);
     const compareGroup = new THREE.Group(); scene.add(compareGroup); 
     const labelGroup = new THREE.Group(); scene.add(labelGroup);
+
+    // 【改修点：メモリリーク対策】Three.jsオブジェクトのメモリ完全解放用関数
+    function clearThreeGroup(group) {
+      while(group.children.length > 0) {
+        const c = group.children[0];
+        if (c.children && c.children.length > 0) {
+          clearThreeGroup(c);
+        }
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) {
+          if (Array.isArray(c.material)) c.material.forEach(m => { if(m.map) m.map.dispose(); m.dispose(); });
+          else { if(c.material.map) c.material.map.dispose(); c.material.dispose(); }
+        }
+        group.remove(c);
+      }
+    }
 
     // --- UI生成 ---
     function toggleCustomConfig() { document.getElementById('custom-config').style.display = document.getElementById('shapeSelect').value==='custom'?'flex':'none'; }
@@ -949,6 +990,15 @@
       const key = CONFIG.SUPABASE_ANON_KEY;
       if(!url || !key) { alert("Supabaseの設定が未完了です。コード内の CONFIG 定数を編集してください。"); return null; }
       return supabase.createClient(url, key);
+    }
+
+    // 【改修点】保存前に確認モーダルを表示
+    function confirmSaveToSupabase() {
+      showConfirmModal(
+        "確認", 
+        "現在記入しているジャンル、名前、ラベル、スコアをデータベースに記録することになります。よろしいですか？", 
+        saveToSupabase
+      );
     }
 
     async function saveToSupabase() {
@@ -1323,7 +1373,8 @@
 
     // --- 3D 描画 ---
     function buildStatic3DShapes() {
-      while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
+      // メモリリーク対策の適用
+      clearThreeGroup(wireframeGroup);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       if(activeVerts.length < 2) return;
       
@@ -1436,8 +1487,9 @@
       }
       dataPoint.position.set(cx, cy, cz); 
 
-      while(regionGroup.children.length > 0) regionGroup.remove(regionGroup.children[0]);
-      while(compareGroup.children.length > 0) compareGroup.remove(compareGroup.children[0]);
+      // メモリリーク対策の適用（以前はremoveのみでdisposeしていなかった）
+      clearThreeGroup(regionGroup);
+      clearThreeGroup(compareGroup);
 
       const mainColorHex = document.getElementById('mainColor')?document.getElementById('mainColor').value:'#00ffcc';
       const faceOpacity = document.getElementById('faceOpacity')?parseFloat(document.getElementById('faceOpacity').value):0.4;
@@ -1497,7 +1549,8 @@
         else { legendEl.style.display = 'none'; }
       }
 
-      while(labelGroup.children.length > 0) { const c=labelGroup.children[0]; if(c.material.map)c.material.map.dispose(); c.material.dispose(); labelGroup.remove(c); }
+      // メモリリーク対策の適用
+      clearThreeGroup(labelGroup);
       const sFactor = parseFloat(document.getElementById('labelSize').value);
       
       if (labelMemory['origin'] !== undefined) { const sp = createOriginTextSprite(labelMemory['origin'], mainColorHex, sFactor); sp.position.set(0,0,0); labelGroup.add(sp); }
