@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v26.2</title>
+  <title>立体評価チャート・プロトタイプ v27.1</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -173,14 +173,18 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v26.2</h3>
-      <div class="row-group edit-only" style="gap:5px;">
-        <button class="primary-btn" onclick="exportHTML()">HTML保存</button>
-        <button class="primary-btn" onclick="exportJSON()">JSON保存</button>
-        <button class="primary-btn" onclick="exportCSV()">CSV保存</button>
-      </div>
-      <div class="row-group edit-only" style="margin-bottom: 10px;">
-        <button class="secondary-btn" onclick="exportViewerHTML()">閲覧専用のHTMLを作成して保存</button>
+      <h3 style="margin-bottom: 5px;">評価プロトタイプ v27.1</h3>
+      
+      <!-- 保存機能の統合 -->
+      <div class="row-group edit-only" style="gap:5px; margin-bottom: 10px;">
+        <select id="exportSelect" style="flex:1; background:#444;">
+          <option value="">💾 データを保存・出力...</option>
+          <option value="html">HTMLファイルとして保存</option>
+          <option value="json">JSONファイルとして保存</option>
+          <option value="csv">CSVファイルとして保存</option>
+          <option value="viewer">閲覧専用のHTMLを作成して保存</option>
+        </select>
+        <button class="primary-btn" onclick="executeExport()" style="flex:0.4;">実行</button>
       </div>
       
       <div class="control-group edit-only">
@@ -205,13 +209,44 @@
         <button class="secondary-btn" onclick="rebuildCustom()">再生成</button>
       </div>
 
-      <details open id="det-compare-box">
-        <summary>データ比較 ＆ クラウド連携</summary>
+      <!-- 3Dカメラ&表示設定の移動 -->
+      <details id="det-camera" style="margin-top:5px; margin-bottom:5px;">
+        <summary>3Dカメラ & 表示設定</summary>
         <div class="section-content">
-          <div class="row-group edit-only">
-            <button class="primary-btn" onclick="saveToSupabase()" style="background:#55ffaa;">☁️ 現在のデータをクラウドへ送信</button>
+          <div class="row-group">
+            <label>自動回転</label>
+            <input type="checkbox" id="autoRotate" onchange="updateRotationSettings()">
+            <select id="rotateDir" onchange="updateRotationSettings()" style="width:auto;">
+              <option value="1">右回り</option>
+              <option value="-1">左回り</option>
+            </select>
           </div>
-          <hr style="border:0; border-top:1px solid #444;">
+          <div class="row-group" style="justify-content: flex-start; gap: 5px;">
+            <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
+            <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
+          </div>
+          <div class="control-group">
+            <label>3Dラベルのサイズ</label>
+            <input type="range" id="labelSize" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updatePlot()">
+          </div>
+          <details style="margin-top:5px;">
+            <summary style="font-size: 13px;">🎨 色と見た目の詳細設定</summary>
+            <div class="section-content">
+              <div class="row-group"><label>メイン色</label><input type="color" id="mainColor" value="#00ffcc" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色1</label><input type="color" id="compColor1" value="#ff00ff" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色2</label><input type="color" id="compColor2" value="#00aaff" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色3</label><input type="color" id="compColor3" value="#ffaa00" oninput="updatePlot()"></div>
+              <div class="row-group"><label>比較色4</label><input type="color" id="compColor4" value="#ff0055" oninput="updatePlot()"></div>
+              <div class="control-group"><label>面の透明度</label><input type="range" id="faceOpacity" min="0" max="1" step="0.05" value="0.4" oninput="updatePlot()"></div>
+              <div class="control-group"><label>線の濃さ</label><input type="range" id="lineOpacity" min="0" max="1" step="0.05" value="0.9" oninput="updatePlot()"></div>
+            </div>
+          </details>
+        </div>
+      </details>
+
+      <details open id="det-compare-box">
+        <summary>ラベル例読込み／データ比較</summary>
+        <div class="section-content">
           
           <div class="row-group edit-only">
             <button class="secondary-btn" style="flex:1;" onclick="document.getElementById('compareInput').click()">📁 ローカルデータ読込</button>
@@ -220,22 +255,30 @@
           <hr style="border:0; border-top:1px solid #444;">
           
           <div class="control-group edit-only">
-            <label style="color:#00ffcc;">☁️ クラウドからデータ検索・比較</label>
-            <div class="row-group" style="gap:4px;">
+            <label style="color:#00ffcc;">☁️ データベースからデータ検索・比較</label>
+            <div class="row-group" style="gap:4px; margin-bottom:4px;">
               <input type="text" id="cloud_search_genre" placeholder="ジャンル" list="dl_genres" style="flex:1;" oninput="updateCloudSuggest()">
               <input type="text" id="cloud_search_target" placeholder="対象名" list="dl_targets" style="flex:1;" oninput="updateCloudSuggest()">
+              <input type="number" id="cloud_search_vertex" placeholder="頂点数" list="dl_vertices" style="flex:0.6;" oninput="updateCloudSuggest()">
             </div>
+            <div class="row-group" style="gap:4px;">
+              <input type="text" id="cloud_search_label1" placeholder="ラベル1 (任意)" list="dl_labels" style="flex:1;" oninput="updateCloudSuggest()">
+              <input type="text" id="cloud_search_label2" placeholder="ラベル2 (任意)" list="dl_labels" style="flex:1;" oninput="updateCloudSuggest()">
+            </div>
+            
             <datalist id="dl_genres"></datalist>
             <datalist id="dl_targets"></datalist>
+            <datalist id="dl_vertices"></datalist>
+            <datalist id="dl_labels"></datalist>
             
-            <div id="cloud_suggest_area" style="font-size: 11.5px; color: #ddd; margin: 2px 0;"></div>
+            <div id="cloud_suggest_area" style="font-size: 11.5px; color: #ddd; margin: 4px 0;"></div>
 
-            <div class="row-group">
+            <div class="row-group" style="margin-top: 4px;">
               <button class="secondary-btn" onclick="fetchCloudList()" style="flex:0.3;">🔄 更新</button>
               <button class="primary-btn" onclick="loadCloudCompareData()" style="flex:1;">⬇️ 平均データを比較に追加</button>
             </div>
             
-            <!-- ベクトル分析・レコメンド機能 (柔軟な設定版) -->
+            <!-- ベクトル分析・レコメンド機能 -->
             <div class="control-group edit-only" style="margin-top: 10px; background:#2a2a2a; padding:10px; border-radius:6px; border:1px solid #444;">
               <label style="color:#00ffcc; font-weight:bold; margin-bottom:4px;">🔍 レコメンド検索 (傾向 × 強さ)</label>
               
@@ -273,40 +316,6 @@
           <div id="compare-list" style="display:flex; flex-direction:column; gap:4px;"></div>
         </div>
       </details>
-
-      <details id="det-camera">
-        <summary>3Dカメラ & 表示設定</summary>
-        <div class="section-content">
-          <div class="row-group">
-            <label>自動回転</label>
-            <input type="checkbox" id="autoRotate" onchange="updateRotationSettings()">
-            <select id="rotateDir" onchange="updateRotationSettings()" style="width:auto;">
-              <option value="1">右回り</option>
-              <option value="-1">左回り</option>
-            </select>
-          </div>
-          <div class="row-group" style="justify-content: flex-start; gap: 5px;">
-            <label style="color:#ffff00; font-weight:bold;">移動幅強調モード</label>
-            <input type="checkbox" id="enhanceMovement" onchange="updatePlot()">
-          </div>
-          <div class="control-group">
-            <label>3Dラベルのサイズ</label>
-            <input type="range" id="labelSize" min="0.1" max="2.0" step="0.1" value="0.8" oninput="updatePlot()">
-          </div>
-          <details style="margin-top:5px;">
-            <summary style="font-size: 13px;">🎨 色と見た目の詳細設定</summary>
-            <div class="section-content">
-              <div class="row-group"><label>メイン色</label><input type="color" id="mainColor" value="#00ffcc" oninput="updatePlot()"></div>
-              <div class="row-group"><label>比較色1</label><input type="color" id="compColor1" value="#ff00ff" oninput="updatePlot()"></div>
-              <div class="row-group"><label>比較色2</label><input type="color" id="compColor2" value="#00aaff" oninput="updatePlot()"></div>
-              <div class="row-group"><label>比較色3</label><input type="color" id="compColor3" value="#ffaa00" oninput="updatePlot()"></div>
-              <div class="row-group"><label>比較色4</label><input type="color" id="compColor4" value="#ff0055" oninput="updatePlot()"></div>
-              <div class="control-group"><label>面の透明度</label><input type="range" id="faceOpacity" min="0" max="1" step="0.05" value="0.4" oninput="updatePlot()"></div>
-              <div class="control-group"><label>線の濃さ</label><input type="range" id="lineOpacity" min="0" max="1" step="0.05" value="0.9" oninput="updatePlot()"></div>
-            </div>
-          </details>
-        </div>
-      </details>
     </div>
 
     <details open id="det-label" class="mobile-section">
@@ -340,7 +349,10 @@
   <div id="mobile-resizer"></div>
 
   <div id="viewport-container">
-    <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="position:absolute; top:10px; right:10px; z-index:100; display:none;">🗺️ 平面(2D)化</button>
+    <div style="position:absolute; top:10px; right:10px; z-index:100; display:flex; flex-direction:column; gap:5px; align-items:flex-end;">
+      <button class="primary-btn edit-only" onclick="saveToSupabase()" style="background:#55ffaa; width:auto; padding:8px 12px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">☁️ データをDBへ追加</button>
+      <button id="mobile-flat-toggle" class="secondary-btn" onclick="toggleFlatModeMobile()" style="display:none; width:auto; padding:8px 12px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">🗺️ 平面(2D)化</button>
+    </div>
     <div id="viewport-legend"></div>
     <div id="viewport"></div>
   </div>
@@ -477,13 +489,44 @@
       tetrahedron: { vertices: [ { id: 'v0', name: '頂点 A (頂上)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '頂点 B (底面奥)', defaultLabel: '要素 2', v: [0, Y_base, R] }, { id: 'v2', name: '頂点 C (底面右)', defaultLabel: '要素 3', v: [R*Math.cos(-Math.PI/6), Y_base, R*Math.sin(-Math.PI/6)] }, { id: 'v3', name: '頂点 D (底面左)', defaultLabel: '要素 4', v: [R*Math.cos(7*Math.PI/6), Y_base, R*Math.sin(7*Math.PI/6)] } ], faces: [[0,1,2], [0,2,3], [0,3,1], [1,3,2]] },
       bipyramid: { vertices: [ { id: 'v0', name: '頂上 (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '底面 (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] }, { id: 'v2', name: '赤道 奥', defaultLabel: '要素 3', v: [0, 0, 1] }, { id: 'v3', name: '赤道 右前', defaultLabel: '要素 4', v: [Math.cos(-Math.PI/6), 0, Math.sin(-Math.PI/6)] }, { id: 'v4', name: '赤道 左前', defaultLabel: '要素 5', v: [Math.cos(7*Math.PI/6), 0, Math.sin(7*Math.PI/6)] } ], faces: [[0,2,3], [0,3,4], [0,4,2], [1,3,2], [1,4,3], [1,2,4]] },
       octahedron: { vertices: [ { id: 'v0', name: '頂点 Top (+Y)', defaultLabel: '要素 1', v: [0, 1, 0] }, { id: 'v1', name: '頂点 Bottom (-Y)', defaultLabel: '要素 2', v: [0, -1, 0] }, { id: 'v2', name: '頂点 Right (+X)', defaultLabel: '要素 3', v: [1, 0, 0] }, { id: 'v3', name: '頂点 Left (-X)', defaultLabel: '要素 4', v: [-1, 0, 0] }, { id: 'v4', name: '頂点 Front (+Z)', defaultLabel: '要素 5', v: [0, 0, 1] }, { id: 'v5', name: '頂点 Back (-Z)', defaultLabel: '要素 6', v: [0, 0, -1] } ], faces: [[0,2,4], [0,4,3], [0,3,5], [0,5,2], [1,4,2], [1,3,4], [1,5,3], [1,2,5]] },
-      hexahedron: { vertices: [ { id: 'v0', name: '頂上・右前', defaultLabel: '要素 1', v: [1, 1, 1] }, { id: 'v1', name: '頂上・左前', defaultLabel: '要素 2', v: [-1, 1, 1] }, { id: 'v2', name: '頂上・左奥', defaultLabel: '要素 3', v: [-1, 1, -1] }, { id: 'v3', name: '頂上・右奥', defaultLabel: '要素 4', v: [1, 1, -1] }, { id: 'v4', name: '底面・右前', defaultLabel: '要素 5', v: [1, -1, 1] }, { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] }, { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] }, { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] } ].map(pt => { pt.v = pt.v.map(val => val/Math.sqrt(3)); return pt; }), faces: [[0,1,2], [0,2,3], [4,6,5], [4,7,6], [0,5,1], [0,4,5], [1,6,2], [1,5,6], [2,7,3], [2,6,7], [3,4,0], [3,7,4]] }
+      hexahedron: {
+        vertices: [
+          { id: 'v0', name: '頂上・右前', defaultLabel: '要素 1', v: [1, 1, 1] },
+          { id: 'v6', name: '底面・左奥', defaultLabel: '要素 7', v: [-1, -1, -1] },
+          { id: 'v1', name: '頂上・左前', defaultLabel: '要素 2', v: [-1, 1, 1] },
+          { id: 'v7', name: '底面・右奥', defaultLabel: '要素 8', v: [1, -1, -1] },
+          { id: 'v2', name: '頂上・左奥', defaultLabel: '要素 3', v: [-1, 1, -1] },
+          { id: 'v4', name: '底面・右前', defaultLabel: '要素 5', v: [1, -1, 1] },
+          { id: 'v3', name: '頂上・右奥', defaultLabel: '要素 4', v: [1, 1, -1] },
+          { id: 'v5', name: '底面・左前', defaultLabel: '要素 6', v: [-1, -1, 1] }
+        ].map(pt => { pt.v = pt.v.map(val => val/Math.sqrt(3)); return pt; }),
+        faces: [[0,2,4], [0,4,6], [5,1,7], [5,3,1], [0,7,2], [0,5,7], [2,1,4], [2,7,1], [4,3,6], [4,1,3], [6,5,0], [6,3,5]]
+      }
     };
     function getEdges(faces) { const edges=[]; const s=new Set(); faces.forEach(f=>{ for(let i=0;i<f.length;i++){ const a=f[i],b=f[(i+1)%f.length],k=Math.min(a,b)+'_'+Math.max(a,b); if(!s.has(k)){s.add(k); edges.push([a,b]);} } }); return edges; }
 
     function generateCustomShape(n, is2DFlat = false, shapeType = 'custom') {
       let points = [], faces = [], explicitEdges = null;
-      if (is2DFlat || n < 4) {
+      if (n === 2) {
+        points = [new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, 0)];
+        explicitEdges = [[0, 1]];
+      } else if (n === 3) {
+        if (is2DFlat) {
+          points = [
+            new THREE.Vector3(0, 0, -1),
+            new THREE.Vector3(-Math.sqrt(3)/2, 0, 0.5),
+            new THREE.Vector3(Math.sqrt(3)/2, 0, 0.5)
+          ];
+        } else {
+          points = [
+            new THREE.Vector3(0, 1, 0),
+            new THREE.Vector3(-Math.sqrt(3)/2, -0.5, 0),
+            new THREE.Vector3(Math.sqrt(3)/2, -0.5, 0)
+          ];
+        }
+        explicitEdges = [[0,1], [1,2], [2,0]];
+        faces = [[0,1,2]];
+      } else if (is2DFlat) {
         let temp3D;
         if (n === 4 && shapeType === 'tetrahedron') temp3D = SHAPES.tetrahedron;
         else if (n === 5 && shapeType === 'bipyramid') temp3D = SHAPES.bipyramid;
@@ -554,25 +597,50 @@
         points = finalPoints;
         
         explicitEdges = [];
-        if (n > 2) {
-          for (let s = 0; s < n; s++) {
-            explicitEdges.push([map[s], map[(s + 1) % n]]);
-          }
-          for (let s = 1; s < n - 1; s++) {
-            faces.push([map[0], map[s], map[s + 1]]);
-          }
-        } else if (n === 2) {
-          explicitEdges = [[0, 1]];
-        }
+        for (let s = 0; s < n; s++) explicitEdges.push([map[s], map[(s + 1) % n]]);
+        for (let s = 1; s < n - 1; s++) faces.push([map[0], map[s], map[s + 1]]);
       } else {
         if (n === 4) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,Y_base,R), new THREE.Vector3(R*Math.cos(-Math.PI/6),Y_base,R*Math.sin(-Math.PI/6)), new THREE.Vector3(R*Math.cos(7*Math.PI/6),Y_base,R*Math.sin(7*Math.PI/6)) ];
         else if (n === 5) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(0,0,1), new THREE.Vector3(Math.cos(-Math.PI/6),0,Math.sin(-Math.PI/6)), new THREE.Vector3(Math.cos(7*Math.PI/6),0,Math.sin(7*Math.PI/6)) ];
         else if (n === 6) points = [ new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1) ];
-        else if (n === 8) { const c=1/Math.sqrt(3); points = [ new THREE.Vector3(-c,-c,-c), new THREE.Vector3(c,-c,-c), new THREE.Vector3(c,c,-c), new THREE.Vector3(-c,c,-c), new THREE.Vector3(-c,-c,c), new THREE.Vector3(c,-c,c), new THREE.Vector3(c,c,c), new THREE.Vector3(-c,c,c) ]; }
-        else if (n === 12) { const t=(1+Math.sqrt(5))/2, len=Math.sqrt(1+t*t), r1=1/len, r2=t/len; points = [ new THREE.Vector3(-r1,r2,0), new THREE.Vector3(r1,r2,0), new THREE.Vector3(-r1,-r2,0), new THREE.Vector3(r1,-r2,0), new THREE.Vector3(0,-r1,r2), new THREE.Vector3(0,r1,r2), new THREE.Vector3(0,-r1,-r2), new THREE.Vector3(0,r1,-r2), new THREE.Vector3(r2,0,-r1), new THREE.Vector3(r2,0,r1), new THREE.Vector3(-r2,0,-r1), new THREE.Vector3(-r2,0,r1) ]; }
-        else if (n === 20) { const p=(1+Math.sqrt(5))/2, r=Math.sqrt(3); [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1],[0,-1/p,-p],[0,1/p,-p],[0,-1/p,p],[0,1/p,p],[-1/p,-p,0],[1/p,-p,0],[-1/p,p,0],[1/p,p,0],[-p,0,-1/p],[p,0,-1/p],[-p,0,1/p],[p,0,1/p]].forEach(pt=>points.push(new THREE.Vector3(pt[0]/r,pt[1]/r,pt[2]/r))); }
+        else if (n === 8) {
+          const c=1/Math.sqrt(3);
+          points = [
+            new THREE.Vector3(-c,-c,-c), new THREE.Vector3(c,c,c),
+            new THREE.Vector3(c,-c,-c), new THREE.Vector3(-c,c,c),
+            new THREE.Vector3(c,c,-c), new THREE.Vector3(-c,-c,c),
+            new THREE.Vector3(-c,c,-c), new THREE.Vector3(c,-c,c)
+          ];
+        }
+        else if (n === 12) {
+          const t=(1+Math.sqrt(5))/2, len=Math.sqrt(1+t*t), r1=1/len, r2=t/len;
+          points = [
+            new THREE.Vector3(-r1,r2,0), new THREE.Vector3(r1,-r2,0),
+            new THREE.Vector3(r1,r2,0), new THREE.Vector3(-r1,-r2,0),
+            new THREE.Vector3(0,-r1,r2), new THREE.Vector3(0,r1,-r2),
+            new THREE.Vector3(0,r1,r2), new THREE.Vector3(0,-r1,-r2),
+            new THREE.Vector3(r2,0,-r1), new THREE.Vector3(-r2,0,r1),
+            new THREE.Vector3(r2,0,r1), new THREE.Vector3(-r2,0,-r1)
+          ];
+        }
+        else if (n === 20) {
+          const p=(1+Math.sqrt(5))/2, r=Math.sqrt(3);
+          [
+            [-1,-1,-1], [1,1,1],
+            [1,-1,-1], [-1,1,1],
+            [1,1,-1], [-1,-1,1],
+            [-1,1,-1], [1,-1,1],
+            [0,-1/p,-p], [0,1/p,p],
+            [0,1/p,-p], [0,-1/p,p],
+            [-1/p,-p,0], [1/p,p,0],
+            [1/p,-p,0], [-1/p,p,0],
+            [-p,0,-1/p], [p,0,1/p],
+            [p,0,-1/p], [-p,0,1/p]
+          ].forEach(pt=>points.push(new THREE.Vector3(pt[0]/r,pt[1]/r,pt[2]/r)));
+        }
         else if (n % 2 === 0) { const k=n/2, h=0.55, r=Math.sqrt(1-h*h); for(let i=0;i<k;i++){ const t=(2*Math.PI*i)/k; points.push(new THREE.Vector3(r*Math.cos(t),h,r*Math.sin(t))); points.push(new THREE.Vector3(-r*Math.cos(t),-h,-r*Math.sin(t))); } }
         else { const k=n-2; points.push(new THREE.Vector3(0,1,0)); points.push(new THREE.Vector3(0,-1,0)); for(let i=0;i<k;i++) points.push(new THREE.Vector3(Math.cos((2*Math.PI*i)/k),0,Math.sin((2*Math.PI*i)/k))); }
+        
         if (points.length >= 4) {
           const pos = new THREE.ConvexGeometry(points).attributes.position;
           for(let i=0; i<pos.count; i+=3) {
@@ -898,7 +966,7 @@
       
       const { data, error } = await sb.from('eval_charts_data').insert([record]);
       if(error) { showModal("保存エラー", error.message); }
-      else { showModal("送信完了", "クラウドへのデータ送信が完了しました。"); fetchCloudList(); }
+      else { showModal("送信完了", "入力データをデータベースへ追加しました。"); fetchCloudList(); }
     }
 
     async function fetchCloudList() {
@@ -907,12 +975,23 @@
       if(error) { console.error(error); return; }
       cachedCloudData = data || [];
       
-      const genres = new Set(), targets = new Set();
-      cachedCloudData.forEach(d => { if(d.genre) genres.add(d.genre); if(d.target_name) targets.add(d.target_name); });
+      const genres = new Set(), targets = new Set(), vertices = new Set(), labels = new Set();
+      cachedCloudData.forEach(d => { 
+        if(d.genre) genres.add(d.genre); 
+        if(d.target_name) targets.add(d.target_name); 
+        if(d.labels_data) {
+          vertices.add(d.labels_data.length);
+          d.labels_data.forEach(l => labels.add(l.name));
+        }
+      });
       const dG = document.getElementById('dl_genres'); dG.innerHTML = '';
       genres.forEach(g => dG.innerHTML += `<option value="${g}">`);
       const dT = document.getElementById('dl_targets'); dT.innerHTML = '';
       targets.forEach(t => dT.innerHTML += `<option value="${t}">`);
+      const dV = document.getElementById('dl_vertices'); dV.innerHTML = '';
+      [...vertices].sort((a,b)=>a-b).forEach(v => dV.innerHTML += `<option value="${v}">`);
+      const dL = document.getElementById('dl_labels'); dL.innerHTML = '';
+      [...labels].sort().forEach(l => dL.innerHTML += `<option value="${l}">`);
       
       updateCloudSuggest();
     }
@@ -920,15 +999,22 @@
     function updateCloudSuggest() {
       const genre = document.getElementById('cloud_search_genre').value;
       const target = document.getElementById('cloud_search_target').value;
+      const vCount = document.getElementById('cloud_search_vertex').value;
+      const lab1 = document.getElementById('cloud_search_label1').value;
+      const lab2 = document.getElementById('cloud_search_label2').value;
+
       const area = document.getElementById('cloud_suggest_area');
       if (!area) return;
       area.innerHTML = '';
       
-      if (!genre && !target) return;
+      if (!genre && !target && !vCount && !lab1 && !lab2) return;
       
       let filtered = cachedCloudData;
       if(genre) filtered = filtered.filter(d => d.genre === genre);
       if(target) filtered = filtered.filter(d => d.target_name === target);
+      if(vCount) filtered = filtered.filter(d => d.labels_data && d.labels_data.length === parseInt(vCount));
+      if(lab1) filtered = filtered.filter(d => d.labels_data && d.labels_data.some(l => l.name === lab1));
+      if(lab2) filtered = filtered.filter(d => d.labels_data && d.labels_data.some(l => l.name === lab2));
       
       if(filtered.length === 0) return;
       
@@ -940,15 +1026,19 @@
         }
       });
       
-      let bestConfig = null; let maxC = 0;
-      for(const [k, v] of Object.entries(configCounts)) {
-        if(v > maxC) { maxC = v; bestConfig = k; }
-      }
+      const sortedConfigs = Object.entries(configCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
       
-      if(bestConfig) {
-        const labels = bestConfig.split(',');
-        area.innerHTML = `<span style="color:#00ffcc; font-weight:bold;">💡 よく使われる評価軸:</span> ${labels.length}頂点 [${labels.join(', ')}] 
-          <button class="secondary-btn" style="padding: 2px 6px; font-size:10px; margin-left:4px; background:#444;" onclick="applyCloudLabels('${bestConfig}')">この評価軸を適用</button>`;
+      if(sortedConfigs.length > 0) {
+        let selectHtml = `<select id="cloud_suggest_select" style="width:100%; margin-bottom:4px; font-size:11.5px; padding:4px; background:#333; color:#fff; border:1px solid #555; border-radius:4px;">`;
+        sortedConfigs.forEach((c) => {
+          const labels = c[0].split(',');
+          selectHtml += `<option value="${c[0]}">${labels.length}項目 [${labels.join(', ')}] (${c[1]}件)</option>`;
+        });
+        selectHtml += `</select>`;
+        
+        area.innerHTML = `<div style="color:#00ffcc; font-weight:bold; margin-bottom:4px;">💡 よく使われる評価軸 (上位最大5件):</div>
+          ${selectHtml}
+          <button class="secondary-btn" style="width:100%; padding: 4px; font-size:11px; background:#444;" onclick="applyCloudLabels(document.getElementById('cloud_suggest_select').value)">選択した評価軸を適用</button>`;
       }
     }
 
@@ -988,13 +1078,23 @@
       
       const genre = document.getElementById('cloud_search_genre').value;
       const target = document.getElementById('cloud_search_target').value;
+      const vCount = document.getElementById('cloud_search_vertex').value;
+      const lab1 = document.getElementById('cloud_search_label1').value;
+      const lab2 = document.getElementById('cloud_search_label2').value;
+
       let query = sb.from('eval_charts_data').select('*');
       if(genre) query = query.eq('genre', genre);
       if(target) query = query.eq('target_name', target);
       
-      const { data, error } = await query;
+      let { data, error } = await query;
       if(error) { showModal("読込エラー", error.message); return; }
       if(!data || data.length === 0) { alert("該当するデータがありません。"); return; }
+      
+      if(vCount) data = data.filter(d => d.labels_data && d.labels_data.length === parseInt(vCount));
+      if(lab1) data = data.filter(d => d.labels_data && d.labels_data.some(l => l.name === lab1));
+      if(lab2) data = data.filter(d => d.labels_data && d.labels_data.some(l => l.name === lab2));
+
+      if(data.length === 0) { alert("指定された条件（頂点数・ラベル）に該当するデータがありません。"); return; }
       
       const configCounts = {};
       data.forEach(d => {
@@ -1039,9 +1139,12 @@
         mappedScores[v.id] = (labelSums[cLabel] && labelCounts[cLabel] > 0) ? (labelSums[cLabel] / labelCounts[cLabel]) : 0;
       });
       
+      let dispTarget = target || 'All';
+      if(vCount) dispTarget += ` (n=${vCount})`;
+      
       const importedState = {
         labels: mappedLabels, scores: mappedScores,
-        metaData: { genre: genre||'All', targetName: (target||'All') + ` (平均 n=${data.length})` },
+        metaData: { genre: genre||'All', targetName: dispTarget + ` (平均 n=${data.length})` },
         _filename: (target||'Cloud Data') + " (Avg)", hidden: false
       };
       
@@ -1117,7 +1220,6 @@
       });
       
       const sliderVal = parseInt(document.getElementById('pot_slider').value);
-      // slider=1 => -0.3, 2 => -0.15, 3 => 0, 4 => +0.15, 5 => +0.30 (頂点あたりの平均スコア差分ターゲット)
       const targetPotDiffAvg = (sliderVal - 3) * 0.15;
       
       const results = [];
@@ -1147,15 +1249,10 @@
           
           const potDiffAvg = (cPot - myPot) / activeVerts.length;
           
-          // 最低限の方向性フィルタ
           if (searchMode === 'similar' && cosSim < 0.2) continue;
           if (searchMode === 'opposite' && cosSim > -0.2) continue;
           
-          // 誤差関数の計算 (小さいほど理想に近い)
-          // 方向の誤差: 0.0 〜 2.0 (重要視するため重みx2)
           let dirError = searchMode === 'similar' ? (1.0 - cosSim) : (cosSim + 1.0);
-          
-          // ポテンシャルの誤差: 0.0 〜 1.0程度
           let potError = Math.abs(potDiffAvg - targetPotDiffAvg);
           
           const totalError = (dirError * 2.0) + potError;
@@ -1228,14 +1325,18 @@
     function buildStatic3DShapes() {
       while(wireframeGroup.children.length > 0) wireframeGroup.remove(wireframeGroup.children[0]);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
-      if(activeVerts.length < 3) return;
+      if(activeVerts.length < 2) return;
       
       const isFlat = isCurrentFlatMode();
       const posArr = [], innerP = activeVerts.map(v => new THREE.Vector3(...v.v));
       innerP.forEach(p => posArr.push(p.x, p.y, p.z));
       
       let finalEdgesMat = new THREE.LineBasicMaterial({ color: 0x555555 });
-      if(isFlat || innerP.length === 3) {
+      
+      if(innerP.length === 2) {
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(innerP);
+        wireframeGroup.add(new THREE.Line(lineGeo, finalEdgesMat));
+      } else if(isFlat || innerP.length === 3) {
         const center = new THREE.Vector3(0,0,0);
         innerP.forEach(p => center.add(p));
         center.divideScalar(innerP.length);
@@ -1281,9 +1382,13 @@
     }
 
     function buildDynamicMesh3D(vec3Array, baseVec3Array, colorHex, faceOp, lineOp, group) {
-      if(vec3Array.length < 3) return;
+      if(vec3Array.length < 2) return;
       const isFlat = isCurrentFlatMode();
-      if(isFlat || vec3Array.length === 3) {
+      
+      if(vec3Array.length === 2) {
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(vec3Array);
+        group.add(new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: lineOp, linewidth: 2 })));
+      } else if(isFlat || vec3Array.length === 3) {
         const center = new THREE.Vector3();
         baseVec3Array.forEach(p => center.add(p));
         center.divideScalar(baseVec3Array.length);
@@ -1504,21 +1609,23 @@
          return {index: i, u: p.u, v: p.v};
       });
 
-      ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
-      perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
-      ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
+      if (activeVerts.length > 1) {
+        ctx.strokeStyle = '#555'; ctx.lineWidth = 1; ctx.beginPath();
+        perimIdx.forEach((idx,i) => { const p=basePoints2D[idx]; if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); }); ctx.closePath(); ctx.stroke();
+        ctx.strokeStyle = '#333'; ctx.beginPath(); perimIdx.forEach(idx => { const p=basePoints2D[idx]; ctx.moveTo(cx,cy); ctx.lineTo(p.u,p.v); }); ctx.stroke();
+      }
 
       compP_vecs_list.forEach((compP, i) => {
         if(!compP) return;
         const cHex = document.getElementById(`compColor${i+1}`).value;
         ctx.fillStyle=hexToRgba(cHex, fOpacity*0.5); ctx.strokeStyle=hexToRgba(cHex, lOpacity); ctx.lineWidth=2; ctx.beginPath();
         perimIdx.forEach((idx,j)=>{ const p=projectObj(compP[idx]); if(j===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
-        ctx.closePath(); ctx.fill(); ctx.stroke();
+        if (activeVerts.length > 2) ctx.closePath(); ctx.fill(); ctx.stroke();
       });
 
       ctx.fillStyle=hexToRgba(mainHex, fOpacity*0.75); ctx.strokeStyle=hexToRgba(mainHex, lOpacity); ctx.lineWidth=2; ctx.beginPath();
       perimIdx.forEach((idx,i)=>{ const p=projectObj(P_vecs[idx]); if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
-      ctx.closePath(); ctx.fill(); ctx.stroke();
+      if (activeVerts.length > 2) ctx.closePath(); ctx.fill(); ctx.stroke();
 
       ctx.font='12px sans-serif'; ctx.fillStyle='#ccc';
       activeVerts.forEach((v,i) => {
@@ -1543,7 +1650,6 @@
       const cProj = projectObj(originPt);
       ctx.fillStyle='rgba(255,255,0,0.4)'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 10, 0, Math.PI*2); ctx.fill();
       ctx.fillStyle='#ffff00'; ctx.beginPath(); ctx.arc(cProj.u, cProj.v, 5, 0, Math.PI*2); ctx.fill();
-
 
       const startX = 5;
       const startY = 5;
@@ -1572,7 +1678,7 @@
     async function exportAll2DMaps() {
       const cvs = document.getElementById('projection-canvas'), ps = document.getElementById('planeSelect'), orig = ps.value;
       alert('すべての投影パターンのダウンロードを開始します。\n※ブラウザの「複数ファイルのダウンロード許可」を求められた場合は許可してください。');
-      if (isCurrentFlatMode()) {
+      if (isCurrentFlatMode() || !ps.options.length) {
         const a=document.createElement('a'); a.href=cvs.toDataURL("image/jpeg", 1.0); a.download=`2D_Flat_projection.jpg`; a.click();
       } else {
         const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
@@ -1606,6 +1712,15 @@
         labels: labelMemory, scores: scoreMemory, hiddenVertices: hiddenVertices, memoText: document.getElementById('memoInput').value, photos: photosList, compareDataList: compareDataList, isViewerMode: isViewer
       };
       script.textContent = JSON.stringify(stateObj); return stateObj;
+    }
+
+    function executeExport() {
+      const v = document.getElementById('exportSelect').value;
+      if(v === 'html') exportHTML();
+      else if(v === 'json') exportJSON();
+      else if(v === 'csv') exportCSV();
+      else if(v === 'viewer') exportViewerHTML();
+      else alert('保存・エクスポート形式を選択してください。');
     }
 
     function exportHTML() {
