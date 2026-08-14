@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>立体評価チャート・プロトタイプ v27.2</title>
+  <title>3D評価チャート・プロトタイプ v27.3</title>
   <style>
     :root { --bottom-panel-height: 40vh; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -185,7 +185,7 @@
   <div id="sidebar">
     <div id="resizer"></div>
     <div id="det-config" class="mobile-section">
-      <h3 style="margin-bottom: 5px;">評価プロトタイプ v27.2</h3>
+      <h3 style="margin-bottom: 5px;">3D chart ploter v27.3</h3>
       
       <!-- 保存機能の統合 -->
       <div class="row-group edit-only" style="gap:5px; margin-bottom: 10px;">
@@ -692,7 +692,6 @@
     let scoreMemory = {}; 
     let hiddenVertices = {}; 
     let compareDataList = []; 
-    // 【改修点】ターゲット名の初期値を変更
     let metaData = { genre: 'ジャンル名', targetName: '商品名など' };
 
     const pairColorPalette = ['#e63946', '#457b9d', '#2a9d8f', '#e9c46a', '#9b5de5', '#00f5d4', '#f15bb5', '#fee440'];
@@ -758,7 +757,7 @@
     const compareGroup = new THREE.Group(); scene.add(compareGroup); 
     const labelGroup = new THREE.Group(); scene.add(labelGroup);
 
-    // 【改修点：メモリリーク対策】Three.jsオブジェクトのメモリ完全解放用関数
+    // Three.jsオブジェクトのメモリ完全解放用関数
     function clearThreeGroup(group) {
       while(group.children.length > 0) {
         const c = group.children[0];
@@ -992,7 +991,6 @@
       return supabase.createClient(url, key);
     }
 
-    // 【改修点】保存前に確認モーダルを表示
     function confirmSaveToSupabase() {
       showConfirmModal(
         "確認", 
@@ -1373,7 +1371,6 @@
 
     // --- 3D 描画 ---
     function buildStatic3DShapes() {
-      // メモリリーク対策の適用
       clearThreeGroup(wireframeGroup);
       const activeVerts = shapeData.vertices.filter(v => !hiddenVertices[v.id]);
       if(activeVerts.length < 2) return;
@@ -1487,7 +1484,6 @@
       }
       dataPoint.position.set(cx, cy, cz); 
 
-      // メモリリーク対策の適用（以前はremoveのみでdisposeしていなかった）
       clearThreeGroup(regionGroup);
       clearThreeGroup(compareGroup);
 
@@ -1549,7 +1545,6 @@
         else { legendEl.style.display = 'none'; }
       }
 
-      // メモリリーク対策の適用
       clearThreeGroup(labelGroup);
       const sFactor = parseFloat(document.getElementById('labelSize').value);
       
@@ -1680,13 +1675,59 @@
       perimIdx.forEach((idx,i)=>{ const p=projectObj(P_vecs[idx]); if(i===0) ctx.moveTo(p.u,p.v); else ctx.lineTo(p.u,p.v); });
       if (activeVerts.length > 2) ctx.closePath(); ctx.fill(); ctx.stroke();
 
+      // 【改修点：ワードラップ（自動改行）処理の追加】
       ctx.font='12px sans-serif'; ctx.fillStyle='#ccc';
+      const lineHeight = 14; // 行の高さ
+      const padding = 10;    // キャンバス端からの余白
+      
       activeVerts.forEach((v,i) => {
         if (labelMemory[v.id]) {
           const p = basePoints2D[i], dx = p.u-cx, dy = p.v-cy, len = Math.sqrt(dx*dx+dy*dy);
           let lx=p.u, ly=p.v; if(len>0.1) { lx+=(dx/len)*14; ly+=(dy/len)*14; }
-          ctx.textAlign=dx>5?'left':(dx<-5?'right':'center'); ctx.textBaseline=dy>5?'top':(dy<-5?'bottom':'middle');
-          ctx.fillText(labelMemory[v.id], lx, ly);
+          
+          const align = dx>5?'left':(dx<-5?'right':'center');
+          const baseline = dy>5?'top':(dy<-5?'bottom':'middle');
+          ctx.textAlign = align;
+          ctx.textBaseline = baseline;
+          
+          // 描画可能な最大幅を計算
+          let maxWidth;
+          if (align === 'left') maxWidth = canvas.width - lx - padding;
+          else if (align === 'right') maxWidth = lx - padding;
+          else maxWidth = (Math.min(lx, canvas.width - lx) - padding) * 2;
+          
+          if (maxWidth < 24) maxWidth = 24; // 極端に狭い場合のセーフティ
+          
+          // 文字列を分割
+          const text = labelMemory[v.id];
+          const chars = Array.from(text); // サロゲートペア対応
+          let lineStr = '';
+          const lines = [];
+          for (let n = 0; n < chars.length; n++) {
+            const testLine = lineStr + chars[n];
+            const testWidth = ctx.measureText(testLine).width;
+            // はみ出る場合は改行
+            if (testWidth > maxWidth && n > 0) {
+              lines.push(lineStr);
+              lineStr = chars[n];
+            } else {
+              lineStr = testLine;
+            }
+          }
+          lines.push(lineStr);
+
+          // 複数行になる場合のY座標(ベースライン)の調整
+          let startY = ly;
+          if (baseline === 'bottom') {
+            startY = ly - (lines.length - 1) * lineHeight;
+          } else if (baseline === 'middle') {
+            startY = ly - ((lines.length - 1) * lineHeight) / 2;
+          }
+
+          // 分割した行を順次描画
+          lines.forEach((l, idx) => {
+            ctx.fillText(l, lx, startY + idx * lineHeight);
+          });
         }
       });
 
